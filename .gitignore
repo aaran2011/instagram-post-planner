@@ -1,0 +1,15 @@
+node_modules
+.next
+data
+certificates
+.env
+.env.local
+.env*.local
+*.pem
+*.log
+.DS_Store
+
+# Sibling projects that live in this folder but aren't part of this app
+clothesplanner-app
+light-it
+.claude/settings.local.json

@@ -1,0 +1,104 @@
+// Shared domain types for Instagram Planner.
+
+export type MediaType = "photo" | "video";
+
+export interface MediaAnalysis {
+  subject: string;
+  contentType: string;
+  visualTheme: string;
+  mood: string;
+  context: string;
+  audience: string;
+  category: string;
+  format: "post" | "reel";
+  colors: string[];
+  // Group id used to detect near-duplicate / very similar items.
+  similarityGroup: string;
+}
+
+export interface MediaItem {
+  id: string;
+  type: MediaType;
+  originalName: string;
+  mime: string;
+  size: number; // bytes
+  width: number | null;
+  height: number | null;
+  duration: number | null; // seconds, videos only
+  // Storage keys: on disk these are filenames within the data dirs; with Vercel
+  // Blob they are the blob URLs (used for deletion).
+  file: string; // original media file key
+  thumb: string | null; // jpeg thumbnail key
+  // Public URLs. Absolute (Blob CDN) in production; null on disk (served via
+  // /api/media/* routes instead).
+  fileUrl?: string | null;
+  thumbUrl?: string | null;
+  createdAt: string; // ISO
+  analysis: MediaAnalysis | null;
+}
+
+export type PostStatus =
+  | "draft"
+  | "scheduled"
+  | "publishing"
+  | "published"
+  | "demo_published"
+  | "failed";
+
+export interface Post {
+  id: string;
+  mediaId: string;
+  order: number; // position in the planned sequence
+  caption: string;
+  hashtags: string[];
+  cta: string;
+  category: string;
+  mood: string;
+  subject: string;
+  format: "post" | "reel";
+  // Music is a *suggestion* only. Instagram's API cannot attach arbitrary
+  // audio to a feed post, so this is always a manual step on photo posts.
+  music: {
+    name: string;
+    artist: string;
+    supportedByApi: false; // documents the real limitation
+  } | null;
+  scheduledAt: string; // ISO timestamp (UTC instant)
+  timezone: string; // IANA tz used to display the local time
+  status: PostStatus;
+  igMediaId: string | null; // returned by Instagram when published
+  error: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InstagramAccount {
+  connected: boolean;
+  username: string | null;
+  igUserId: string | null;
+  accountType: string | null; // e.g. "BUSINESS"
+  // Access tokens are stored server-side only, never sent to the client.
+  connectedAt: string | null;
+  demo: boolean; // true when this is a simulated connection
+}
+
+export interface Settings {
+  timezone: string;
+  defaultTimes: string[]; // e.g. ["11:00", "19:30"] used to build schedules
+  postingCadenceDays: number; // gap between posts
+  aiTone: string; // caption tone preference
+  aiEmojis: boolean;
+  demoMode: boolean; // when true, publishing is simulated
+}
+
+export interface Database {
+  media: MediaItem[];
+  posts: Post[];
+  settings: Settings;
+  instagram: InstagramAccount;
+  // Server-only secret material. Never serialized to any client response.
+  secrets: {
+    instagramAccessToken: string | null;
+  };
+}
