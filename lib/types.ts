@@ -101,4 +101,10 @@ export interface Database {
   secrets: {
     instagramAccessToken: string | null;
   };
+  // Auth: a reset can set a hashed password here that overrides the env var,
+  // plus a pending reset code. Server-only.
+  auth: {
+    passwordHash: string | null; // scrypt "salt:hash"
+    reset: { codeHash: string; expires: number; attempts: number } | null;
+  };
 }

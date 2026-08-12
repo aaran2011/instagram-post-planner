@@ -52,6 +52,7 @@ export function configStatus() {
     instagram: instagramConfigured(),
     instagramOAuth: Boolean(config.ig.appId && config.ig.appSecret),
     instagramManualToken: Boolean(config.ig.manualToken),
+    email: Boolean(process.env.RESEND_API_KEY),
     defaultCredentials:
       !process.env.APP_PASSWORD || !process.env.APP_EMAIL,
     defaultSessionSecret: usingDefaultSecret(),
