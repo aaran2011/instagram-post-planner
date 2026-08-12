@@ -36,8 +36,15 @@ export async function verifyCredentials(email: string, password: string): Promis
   );
   if (!emailOk) return false;
 
-  const db = await readDb();
-  if (db.auth.passwordHash) return verifyHash(password || "", db.auth.passwordHash);
+  // If the DB is reachable and a reset password is set, use it. If the DB is
+  // unavailable, fall back to the env password so a storage outage can't lock
+  // the owner out (and login returns a clean result instead of a 500).
+  try {
+    const db = await readDb();
+    if (db.auth.passwordHash) return verifyHash(password || "", db.auth.passwordHash);
+  } catch {
+    // storage unavailable — fall through to env comparison
+  }
   return safeEqual(password || "", config.appPassword);
 }
 
