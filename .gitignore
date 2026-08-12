@@ -5,6 +5,8 @@ certificates
 .env
 .env.local
 .env*.local
+.env.local*
+*.save
 *.pem
 *.log
 .DS_Store
