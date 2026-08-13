@@ -103,12 +103,19 @@ function ComposerBox({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [idx, setIdx] = useState(0);
+  const [drag, setDrag] = useState(false);
   const items = box.items;
   const cur = Math.min(idx, Math.max(0, items.length - 1));
   const btnStyle: React.CSSProperties = { position: "absolute", top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.45)", color: "#fff", border: "none", padding: 6, borderRadius: "50%", cursor: "pointer", display: "grid", placeItems: "center" };
 
   return (
-    <div className="card" style={{ overflow: "hidden" }}>
+    <div
+      className="card"
+      style={{ overflow: "hidden", outline: drag ? "2px solid var(--accent)" : "none", outlineOffset: -2 }}
+      onDragOver={(e) => { e.preventDefault(); if (!drag) setDrag(true); }}
+      onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
+      onDrop={(e) => { e.preventDefault(); setDrag(false); onAdd(e.dataTransfer.files); }}
+    >
       <div style={{ position: "relative", aspectRatio: "1", background: "var(--surface-2)" }}>
         {items.length ? (
           <>
@@ -127,7 +134,7 @@ function ComposerBox({
           </>
         ) : (
           <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--text-3)", textAlign: "center", padding: 16 }}>
-            <div className="tiny">Add 2+ photos<br />for a carousel</div>
+            <div className="tiny">{drag ? "Drop to add" : <>Drag photos here or tap <b>Add</b><br />(2+ = carousel)</>}</div>
           </div>
         )}
         {box.uploading > 0 && (
