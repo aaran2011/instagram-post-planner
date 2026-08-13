@@ -5,7 +5,7 @@ import { useApp } from "../ui";
 import { Segmented } from "../ui";
 import { api, fmtDuration } from "../store";
 import type { ClientMedia } from "../store";
-import { extract, optimizeImage, isAccepted, ACCEPT_ATTR } from "../media-utils";
+import { extract, isAccepted, ACCEPT_ATTR } from "../media-utils";
 import GenerateOverlay from "../GenerateOverlay";
 import {
   IconUpload, IconPlus, IconTrash, IconVideo, IconCheck, IconSparkle,
@@ -70,17 +70,12 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
           if (blobDirect) {
             try {
               updateQ(item.id, { status: "uploading", progress: 0 });
-              // Shrink big photos to keep uploads fast (invisible on Instagram).
-              const opt = await optimizeImage(file);
-              const payload: Blob = opt ? opt.blob : file;
-              const ext = opt ? ".jpg" : extFor(file);
-              const contentType = opt ? "image/jpeg" : file.type || undefined;
-              const upWidth = opt ? opt.width : meta.width;
-              const upHeight = opt ? opt.height : meta.height;
-              const fileRes = await upload(`uploads/${item.id}${ext}`, payload, {
+              // Upload the ORIGINAL file — full quality, no resizing/re-encoding.
+              const ext = extFor(file);
+              const fileRes = await upload(`uploads/${item.id}${ext}`, file, {
                 access: "public",
                 handleUploadUrl: "/api/blob/upload",
-                contentType,
+                contentType: file.type || undefined,
                 onUploadProgress: (p) =>
                   updateQ(item.id, { status: "uploading", progress: Math.round(p.percentage) }),
               });
@@ -98,10 +93,10 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
                 thumbUrl,
                 type: item.type,
                 originalName: file.name,
-                mime: contentType || file.type,
-                size: payload.size,
-                width: upWidth,
-                height: upHeight,
+                mime: file.type,
+                size: file.size,
+                width: meta.width,
+                height: meta.height,
                 duration: meta.duration,
               });
               setState((prev) => ({ ...prev, media: [res.media as ClientMedia, ...prev.media] }));
