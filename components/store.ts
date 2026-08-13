@@ -24,6 +24,8 @@ export interface ConfigStatus {
   instagramManualToken: boolean;
   defaultCredentials: boolean;
   defaultSessionSecret: boolean;
+  email?: boolean;
+  blobDirect?: boolean;
 }
 
 export interface ClientState {

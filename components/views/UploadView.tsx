@@ -1,5 +1,6 @@
 "use client";
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { upload } from "@vercel/blob/client";
 import { useApp } from "../ui";
 import { Segmented } from "../ui";
 import { api, fmtDuration } from "../store";
@@ -23,8 +24,20 @@ interface QItem {
 
 let qseq = 0;
 
+const EXT_MAP: Record<string, string> = {
+  "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png",
+  "image/webp": ".webp", "video/mp4": ".mp4", "video/quicktime": ".mov",
+};
+function extFor(file: File): string {
+  const t = (file.type || "").toLowerCase();
+  if (EXT_MAP[t]) return EXT_MAP[t];
+  const m = file.name.match(/\.[a-z0-9]+$/i);
+  return m ? m[0] : "";
+}
+
 export default function UploadView({ onConnect }: { onConnect: () => void }) {
   const { state, setState, toast, go } = useApp();
+  const blobDirect = Boolean(state.config?.blobDirect);
   const [drag, setDrag] = useState(false);
   const [queue, setQueue] = useState<QItem[]>([]);
   const [filter, setFilter] = useState<"all" | "photo" | "video">("all");
@@ -51,6 +64,50 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
             const turl = URL.createObjectURL(meta.thumb);
             updateQ(item.id, { thumbUrl: turl });
           }
+
+          // Production: upload the (possibly large) file DIRECTLY to Blob from
+          // the browser, avoiding the serverless request-size limit.
+          if (blobDirect) {
+            try {
+              updateQ(item.id, { status: "uploading", progress: 0 });
+              const ext = extFor(file);
+              const fileRes = await upload(`uploads/${item.id}${ext}`, file, {
+                access: "public",
+                handleUploadUrl: "/api/blob/upload",
+                contentType: file.type || undefined,
+                onUploadProgress: (p) =>
+                  updateQ(item.id, { status: "uploading", progress: Math.round(p.percentage) }),
+              });
+              let thumbUrl: string | undefined;
+              if (meta.thumb) {
+                const tRes = await upload(`thumbs/${item.id}.jpg`, meta.thumb, {
+                  access: "public",
+                  handleUploadUrl: "/api/blob/upload",
+                  contentType: "image/jpeg",
+                });
+                thumbUrl = tRes.url;
+              }
+              const res = await api.post("/api/media/register", {
+                fileUrl: fileRes.url,
+                thumbUrl,
+                type: item.type,
+                originalName: file.name,
+                mime: file.type,
+                size: file.size,
+                width: meta.width,
+                height: meta.height,
+                duration: meta.duration,
+              });
+              setState((prev) => ({ ...prev, media: [res.media as ClientMedia, ...prev.media] }));
+              updateQ(item.id, { status: "done", progress: 100 });
+              setTimeout(() => setQueue((q) => q.filter((x) => x.id !== item.id)), 700);
+            } catch (e: any) {
+              updateQ(item.id, { status: "error", error: (e?.message || "Upload failed").slice(0, 140) });
+            }
+            resolve();
+            return;
+          }
+
           const fd = new FormData();
           fd.append("file", file);
           if (meta.thumb) fd.append("thumb", meta.thumb, "thumb.jpg");
@@ -91,7 +148,7 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
           resolve();
         }
       }),
-    [setState],
+    [setState, blobDirect],
   );
 
   const handleFiles = useCallback(

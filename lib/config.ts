@@ -53,6 +53,9 @@ export function configStatus() {
     instagramOAuth: Boolean(config.ig.appId && config.ig.appSecret),
     instagramManualToken: Boolean(config.ig.manualToken),
     email: Boolean(process.env.RESEND_API_KEY),
+    // When Vercel Blob is configured, the browser uploads files directly to it
+    // (bypasses the serverless request-size limit for large photos/videos).
+    blobDirect: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     defaultCredentials:
       !process.env.APP_PASSWORD || !process.env.APP_EMAIL,
     defaultSessionSecret: usingDefaultSecret(),
