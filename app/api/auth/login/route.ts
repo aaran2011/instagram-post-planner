@@ -17,6 +17,6 @@ export async function POST(req: NextRequest) {
   if (!(await verifyCredentials(String(email), String(password)))) {
     return json({ error: "Incorrect email or password" }, 401);
   }
-  setSessionCookie(config.appEmail);
+  setSessionCookie(config.appEmail, body.remember !== false);
   return json({ ok: true });
 }

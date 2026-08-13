@@ -2,6 +2,7 @@ import { json } from "@/lib/api";
 import { usingRedis } from "@/lib/kvstore";
 import { usingBlob } from "@/lib/blobstore";
 import { readDb } from "@/lib/db";
+import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -26,5 +27,9 @@ export async function GET() {
     hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     dbRead,
     mediaCount,
+    // Instagram OAuth wiring (no secret value — only what the app sends/uses).
+    instagramRedirectUri: config.ig.redirectUri,
+    instagramAppId: config.ig.appId,
+    instagramSecretLen: config.ig.appSecret.length,
   });
 }

@@ -55,13 +55,15 @@ export function verifyToken(token: string | undefined | null): string | null {
   }
 }
 
-export function setSessionCookie(sub: string) {
+export function setSessionCookie(sub: string, remember = true) {
+  // remember=true -> persistent cookie (30 days). remember=false -> session
+  // cookie that clears when the browser closes.
   cookies().set(COOKIE_NAME, createToken(sub), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: MAX_AGE_SECONDS,
+    ...(remember ? { maxAge: MAX_AGE_SECONDS } : {}),
   });
 }
 

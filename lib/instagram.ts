@@ -94,19 +94,28 @@ export interface ConnectResult {
 // Exchange an OAuth code for a long-lived Instagram token + account info.
 export async function exchangeCodeForAccount(code: string): Promise<ConnectResult> {
   // 1) Short-lived token (also returns the Instagram-scoped user_id).
-  const short = await jsonOrThrow(
-    await fetch(TOKEN, {
-      method: "POST",
-      body: new URLSearchParams({
-        client_id: config.ig.appId,
-        client_secret: config.ig.appSecret,
-        grant_type: "authorization_code",
-        redirect_uri: config.ig.redirectUri,
-        code,
-      }),
+  const tokenRes = await fetch(TOKEN, {
+    method: "POST",
+    body: new URLSearchParams({
+      client_id: config.ig.appId,
+      client_secret: config.ig.appSecret,
+      grant_type: "authorization_code",
+      redirect_uri: config.ig.redirectUri,
+      code,
     }),
-    "Token exchange",
-  );
+  });
+  const tokenBody = await tokenRes.text();
+  if (!tokenRes.ok) {
+    throw new Error(
+      `Token exchange failed (redirect_uri sent: "${config.ig.redirectUri}"): ${tokenBody.slice(0, 300)}`,
+    );
+  }
+  let short: any;
+  try {
+    short = JSON.parse(tokenBody);
+  } catch {
+    throw new Error(`Token exchange returned non-JSON: ${tokenBody.slice(0, 200)}`);
+  }
 
   let accessToken: string = short.access_token;
   const igUserId = String(short.user_id);

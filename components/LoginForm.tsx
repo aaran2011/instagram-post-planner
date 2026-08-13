@@ -14,6 +14,7 @@ export default function LoginForm() {
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [failedCount, setFailedCount] = useState(0);
+  const [remember, setRemember] = useState(true);
   const [usingDefaults, setUsingDefaults] = useState(false);
   const [accountEmail, setAccountEmail] = useState<string>("");
   const [emailConfigured, setEmailConfigured] = useState(true);
@@ -42,7 +43,7 @@ export default function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, remember }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -156,6 +157,12 @@ export default function LoginForm() {
                 <span>Password</span>
                 <input className="input" type="password" autoComplete="current-password" value={password}
                   onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+              </label>
+
+              <label className="flex gap8" style={{ cursor: "pointer", fontSize: 13.5, color: "var(--text-2)" }}>
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
+                Keep me signed in
               </label>
 
               {errorBox}
