@@ -54,42 +54,47 @@ export async function POST(req: NextRequest) {
   const ext = EXT[mime] || path.extname((file as File).name) || "";
   const storedName = `${id}${ext}`;
 
-  // Persist the original file (Vercel Blob in prod, disk in dev).
-  const buf = Buffer.from(await file.arrayBuffer());
-  const stored = await saveUpload(storedName, buf, mime);
+  try {
+    // Persist the original file (Vercel Blob in prod, disk in dev).
+    const buf = Buffer.from(await file.arrayBuffer());
+    const stored = await saveUpload(storedName, buf, mime);
 
-  // Persist the client-generated thumbnail if present.
-  let thumbKey: string | null = null;
-  let thumbUrl: string | null = null;
-  const thumb = form.get("thumb");
-  if (thumb instanceof File && thumb.size > 0) {
-    const t = await saveThumb(`${id}.jpg`, Buffer.from(await thumb.arrayBuffer()));
-    thumbKey = t.key;
-    thumbUrl = t.url;
+    // Persist the client-generated thumbnail if present.
+    let thumbKey: string | null = null;
+    let thumbUrl: string | null = null;
+    const thumb = form.get("thumb");
+    if (thumb instanceof File && thumb.size > 0) {
+      const t = await saveThumb(`${id}.jpg`, Buffer.from(await thumb.arrayBuffer()));
+      thumbKey = t.key;
+      thumbUrl = t.url;
+    }
+
+    const num = (v: FormDataEntryValue | null) => {
+      const n = v == null ? NaN : parseFloat(String(v));
+      return isNaN(n) ? null : n;
+    };
+
+    const item: MediaItem = {
+      id,
+      type,
+      originalName: String(form.get("originalName") || (file as File).name || storedName),
+      mime,
+      size: buf.length,
+      width: num(form.get("width")),
+      height: num(form.get("height")),
+      duration: num(form.get("duration")),
+      file: stored.key,
+      thumb: thumbKey,
+      fileUrl: stored.url,
+      thumbUrl: thumbUrl,
+      createdAt: new Date().toISOString(),
+      analysis: null,
+    };
+
+    await updateDb((db) => db.media.push(item));
+    return json({ media: publicMedia(item) });
+  } catch (e: any) {
+    // Surface the real reason instead of a blank 500.
+    return json({ error: "Upload failed on server: " + String(e?.message || e).slice(0, 220) }, 500);
   }
-
-  const num = (v: FormDataEntryValue | null) => {
-    const n = v == null ? NaN : parseFloat(String(v));
-    return isNaN(n) ? null : n;
-  };
-
-  const item: MediaItem = {
-    id,
-    type,
-    originalName: String(form.get("originalName") || (file as File).name || storedName),
-    mime,
-    size: buf.length,
-    width: num(form.get("width")),
-    height: num(form.get("height")),
-    duration: num(form.get("duration")),
-    file: stored.key,
-    thumb: thumbKey,
-    fileUrl: stored.url,
-    thumbUrl: thumbUrl,
-    createdAt: new Date().toISOString(),
-    analysis: null,
-  };
-
-  await updateDb((db) => db.media.push(item));
-  return json({ media: publicMedia(item) });
 }

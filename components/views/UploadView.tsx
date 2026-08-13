@@ -141,10 +141,11 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
                 updateQ(item.id, { status: "done", progress: 100 });
                 setTimeout(() => setQueue((q) => q.filter((x) => x.id !== item.id)), 700);
               } else {
-                updateQ(item.id, { status: "error", error: data.error || "Upload failed" });
+                updateQ(item.id, { status: "error", error: data.error || `Upload failed (${xhr.status})` });
               }
             } catch {
-              updateQ(item.id, { status: "error", error: "Bad server response" });
+              const snippet = (xhr.responseText || "").replace(/<[^>]*>/g, " ").trim().slice(0, 120);
+              updateQ(item.id, { status: "error", error: `Server ${xhr.status}: ${snippet || "no response body"}` });
             }
             resolve();
           };
