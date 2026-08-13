@@ -93,6 +93,9 @@ export interface ConnectResult {
 
 // Exchange an OAuth code for a long-lived Instagram token + account info.
 export async function exchangeCodeForAccount(code: string): Promise<ConnectResult> {
+  // Instagram often appends "#_" to the code; strip any fragment to be safe.
+  const cleanCode = (code || "").split("#")[0];
+
   // 1) Short-lived token (also returns the Instagram-scoped user_id).
   const tokenRes = await fetch(TOKEN, {
     method: "POST",
@@ -101,7 +104,7 @@ export async function exchangeCodeForAccount(code: string): Promise<ConnectResul
       client_secret: config.ig.appSecret,
       grant_type: "authorization_code",
       redirect_uri: config.ig.redirectUri,
-      code,
+      code: cleanCode,
     }),
   });
   const tokenBody = await tokenRes.text();
