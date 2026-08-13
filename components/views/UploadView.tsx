@@ -5,7 +5,7 @@ import { useApp } from "../ui";
 import { Segmented } from "../ui";
 import { api, fmtDuration } from "../store";
 import type { ClientMedia } from "../store";
-import { extract, isAccepted, ACCEPT_ATTR } from "../media-utils";
+import { extract, optimizeImage, isAccepted, ACCEPT_ATTR } from "../media-utils";
 import GenerateOverlay from "../GenerateOverlay";
 import {
   IconUpload, IconPlus, IconTrash, IconVideo, IconCheck, IconSparkle,
@@ -70,11 +70,17 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
           if (blobDirect) {
             try {
               updateQ(item.id, { status: "uploading", progress: 0 });
-              const ext = extFor(file);
-              const fileRes = await upload(`uploads/${item.id}${ext}`, file, {
+              // Shrink big photos to keep uploads fast (invisible on Instagram).
+              const opt = await optimizeImage(file);
+              const payload: Blob = opt ? opt.blob : file;
+              const ext = opt ? ".jpg" : extFor(file);
+              const contentType = opt ? "image/jpeg" : file.type || undefined;
+              const upWidth = opt ? opt.width : meta.width;
+              const upHeight = opt ? opt.height : meta.height;
+              const fileRes = await upload(`uploads/${item.id}${ext}`, payload, {
                 access: "public",
                 handleUploadUrl: "/api/blob/upload",
-                contentType: file.type || undefined,
+                contentType,
                 onUploadProgress: (p) =>
                   updateQ(item.id, { status: "uploading", progress: Math.round(p.percentage) }),
               });
@@ -92,10 +98,10 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
                 thumbUrl,
                 type: item.type,
                 originalName: file.name,
-                mime: file.type,
-                size: file.size,
-                width: meta.width,
-                height: meta.height,
+                mime: contentType || file.type,
+                size: payload.size,
+                width: upWidth,
+                height: upHeight,
                 duration: meta.duration,
               });
               setState((prev) => ({ ...prev, media: [res.media as ClientMedia, ...prev.media] }));
@@ -170,8 +176,8 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
 
       setQueue((q) => [...good.map((g) => g.item), ...q]);
 
-      // Upload with a small concurrency pool.
-      const CONC = 3;
+      // Upload with a concurrency pool (more parallelism for direct-to-Blob).
+      const CONC = blobDirect ? 6 : 3;
       let idx = 0;
       const workers = new Array(Math.min(CONC, good.length)).fill(0).map(async () => {
         while (idx < good.length) {

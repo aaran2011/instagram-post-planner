@@ -97,6 +97,54 @@ export function extract(file: File): Promise<Extracted> {
   return extractPhoto(file);
 }
 
+// Downscale a large photo to a max longest-side before upload — dramatically
+// smaller files, and invisible on Instagram (which caps photos at ~1080px).
+// Returns null for videos or images already small enough (upload the original).
+export function optimizeImage(
+  file: File,
+  maxDim = 2048,
+  quality = 0.9,
+): Promise<{ blob: Blob; width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith("image/")) return resolve(null);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      if (scale >= 1 || !w || !h) {
+        URL.revokeObjectURL(url);
+        return resolve(null); // already small enough
+      }
+      const cw = Math.round(w * scale);
+      const ch = Math.round(h * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(url);
+        return resolve(null);
+      }
+      ctx.drawImage(img, 0, 0, cw, ch);
+      canvas.toBlob(
+        (b) => {
+          URL.revokeObjectURL(url);
+          resolve(b ? { blob: b, width: cw, height: ch } : null);
+        },
+        "image/jpeg",
+        quality,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
 export const ACCEPTED = [
   "image/jpeg", "image/jpg", "image/png", "image/webp", "video/mp4", "video/quicktime",
 ];
