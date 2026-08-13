@@ -89,6 +89,7 @@ export interface Settings {
   postingCadenceDays: number; // gap between posts
   aiTone: string; // caption tone preference
   aiEmojis: boolean;
+  niche: string; // e.g. "wildlife & nature photography" — steers captions/hashtags
   demoMode: boolean; // when true, publishing is simulated
 }
 

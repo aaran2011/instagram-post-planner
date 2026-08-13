@@ -13,6 +13,7 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
   const [cadence, setCadence] = useState(s.postingCadenceDays);
   const [tone, setTone] = useState(s.aiTone);
   const [emojis, setEmojis] = useState(s.aiEmojis);
+  const [niche, setNiche] = useState(s.niche || "");
   const [newTime, setNewTime] = useState("");
   const [saving, setSaving] = useState(false);
   const ig = state.instagram;
@@ -21,7 +22,7 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
     setSaving(true);
     try {
       const res = await api.patch("/api/settings", {
-        timezone, defaultTimes: times, postingCadenceDays: cadence, aiTone: tone, aiEmojis: emojis,
+        timezone, defaultTimes: times, postingCadenceDays: cadence, aiTone: tone, aiEmojis: emojis, niche,
       });
       setState((prev) => ({ ...prev, settings: res.settings }));
       toast("Settings saved", "ok");
@@ -139,6 +140,11 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
         {!state.config.ai && (
           <div className="banner warn mb16"><IconAlert size={16} className="bicon" /><div>No <code>ANTHROPIC_API_KEY</code> configured — the app uses the built-in demo content engine. Add a key to enable real vision analysis &amp; captions.</div></div>
         )}
+        <label className="field mb16">
+          <span>Your niche / topic</span>
+          <input className="input" value={niche} onChange={(e) => setNiche(e.target.value)} placeholder="e.g. wildlife & nature photography" />
+          <span className="tiny muted" style={{ marginTop: 6, display: "block" }}>Steers captions &amp; hashtags. With an AI key set, captions describe each photo (e.g. the bird species).</span>
+        </label>
         <label className="field mb16">
           <span>Caption tone</span>
           <input className="input" value={tone} onChange={(e) => setTone(e.target.value)} placeholder="e.g. warm, authentic, concise" />

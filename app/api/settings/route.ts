@@ -29,6 +29,7 @@ export async function PATCH(req: NextRequest) {
     }
     if (typeof body.aiTone === "string") s.aiTone = body.aiTone;
     if (typeof body.aiEmojis === "boolean") s.aiEmojis = body.aiEmojis;
+    if (typeof body.niche === "string") s.niche = body.niche.slice(0, 120);
     if (typeof body.demoMode === "boolean") s.demoMode = body.demoMode;
     return { ...s };
   });

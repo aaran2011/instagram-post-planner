@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS: Settings = {
   postingCadenceDays: 1,
   aiTone: "warm, authentic, concise",
   aiEmojis: true,
+  niche: "wildlife & nature photography",
   demoMode: (process.env.DEMO_MODE ?? "true") !== "false",
 };
 

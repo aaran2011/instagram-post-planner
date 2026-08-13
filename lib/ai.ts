@@ -36,12 +36,12 @@ interface ItemPlan {
 
 async function planForItem(item: MediaItem, settings: Settings): Promise<ItemPlan> {
   // Demo baseline (always valid).
-  const demoAnalysis = analyzeItemDemo(item);
+  const demoAnalysis = analyzeItemDemo(item, settings.niche);
   let analysis = demoAnalysis;
   let caption = captionDemo(item, demoAnalysis, settings);
-  let cta = ctaDemo(item);
+  let cta = ctaDemo(item, 0, demoAnalysis);
   let hashtags = hashtagsDemo(item, demoAnalysis);
-  let music = musicDemo(item);
+  let music = musicDemo(item, 0, demoAnalysis);
 
   if (claudeAvailable()) {
     try {
@@ -134,8 +134,8 @@ export async function regenerateCaption(item: MediaItem, settings: Settings, var
       if (r.caption) return { caption: r.caption, cta: r.cta || ctaDemo(item, variant) };
     } catch {}
   }
-  const analysis = item.analysis ?? analyzeItemDemo(item);
-  return { caption: captionDemo(item, analysis, settings, variant), cta: ctaDemo(item, variant) };
+  const analysis = item.analysis ?? analyzeItemDemo(item, settings.niche);
+  return { caption: captionDemo(item, analysis, settings, variant), cta: ctaDemo(item, variant, analysis) };
 }
 
 export async function regenerateHashtags(item: MediaItem, variant: number): Promise<string[]> {
@@ -150,7 +150,7 @@ export async function regenerateHashtags(item: MediaItem, variant: number): Prom
 }
 
 export function regenerateMusic(item: MediaItem, variant: number) {
-  return musicDemo(item, variant);
+  return musicDemo(item, variant, item.analysis);
 }
 
 export function regenerateRecommendation(item: MediaItem): { subject: string; category: string; mood: string; format: "post" | "reel" } {

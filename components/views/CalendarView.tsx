@@ -4,7 +4,7 @@ import { useApp, Segmented } from "../ui";
 import { api, mediaById } from "../store";
 import type { Post } from "../store";
 import { localParts, zonedTimeToUtc, formatLocal } from "@/lib/schedule";
-import { IconChevronL, IconChevronR, IconCalendar } from "../icons";
+import { IconChevronL, IconChevronR, IconCalendar, IconTrash } from "../icons";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -37,6 +37,18 @@ export default function CalendarView() {
   }, [state.posts]);
 
   const todayKey = keyOf(now.getFullYear(), now.getMonth() + 1, now.getDate());
+
+  async function clearCalendar() {
+    if (!state.posts.length) return;
+    if (!confirm(`Clear all ${state.posts.length} post${state.posts.length > 1 ? "s" : ""} from the calendar? Your uploaded photos stay in the library — only the schedule is cleared.`)) return;
+    try {
+      const res = await api.post("/api/posts/clear");
+      setState(res);
+      toast("Calendar cleared", "ok");
+    } catch (e: any) {
+      toast(e.message, "err");
+    }
+  }
 
   async function moveToDate(postId: string, y: number, m: number, d: number) {
     const post = state.posts.find((p) => p.id === postId);
@@ -173,6 +185,9 @@ export default function CalendarView() {
       <div className="sectionhead">
         <div className="htext"><h1>Calendar</h1><p className="muted tiny">Drag a post to another day to reschedule. Click to preview.</p></div>
         <div className="spacer" />
+        {state.posts.length > 0 && (
+          <button className="btn sm danger" onClick={clearCalendar}><IconTrash size={15} /> Clear calendar</button>
+        )}
         <Segmented value={mode} onChange={setMode as any}
           options={[{ value: "month", label: "Month" }, { value: "week", label: "Week" }, { value: "day", label: "Day" }]} />
       </div>

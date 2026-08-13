@@ -79,7 +79,9 @@ export async function claudeGenerateForItem(
   const img = item.type === "photo" ? await readThumbBase64(item) : null;
   const system = [
     "You are an expert Instagram content strategist helping a single creator plan posts.",
-    "Analyze the media and produce a concise, non-generic caption grounded in what is actually shown.",
+    `The creator's niche is: ${settings.niche || "general lifestyle"}. Write on-topic for that niche.`,
+    "Analyze the media and produce a concise, non-generic caption grounded in what is ACTUALLY shown.",
+    "If the image has an identifiable subject (e.g. a specific bird species, animal, or place), name/describe it naturally in the caption and use a couple of subject-specific hashtags.",
     `Caption tone: ${settings.aiTone}. Emojis: ${settings.aiEmojis ? "sparingly allowed" : "none"}.`,
     "Hashtags must be relevant and modest (8-12), no spammy blocks.",
     item.type === "video"
