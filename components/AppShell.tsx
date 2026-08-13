@@ -16,6 +16,8 @@ import AutomationView from "./views/AutomationView";
 import SettingsView from "./views/SettingsView";
 import PostModal from "./PostModal";
 import ConnectModal from "./ConnectModal";
+import GrowthModal from "./GrowthModal";
+import { IconSparkle } from "./icons";
 
 interface Toast { id: number; msg: string; type: "ok" | "err" | "info"; }
 
@@ -27,6 +29,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [growthOpen, setGrowthOpen] = useState(false);
 
   const toast = useCallback((msg: string, type: "ok" | "err" | "info" = "info") => {
     const id = Date.now() + Math.random();
@@ -137,6 +140,9 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
             </button>
             <div className="title">{navItems.find((n) => n.key === view)?.label}</div>
             <div className="spacer" />
+            <button className="btn subtle sm" onClick={() => setGrowthOpen(true)}>
+              <IconSparkle size={15} /> Grow followers
+            </button>
             {state.settings.demoMode && (
               <span className="pill accent" title="Nothing will be published to Instagram in demo mode.">
                 <span className="dot" style={{ background: "var(--accent)" }} /> Demo mode
@@ -164,6 +170,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
 
       {openPostId && <PostModal postId={openPostId} onClose={() => setOpenPostId(null)} />}
       {connectOpen && <ConnectModal onClose={() => setConnectOpen(false)} />}
+      {growthOpen && <GrowthModal onClose={() => setGrowthOpen(false)} />}
 
       <div className="toasts">
         {toasts.map((t) => (

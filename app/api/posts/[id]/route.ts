@@ -60,3 +60,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 function isValidStatus(s: string): s is Post["status"] {
   return ["draft", "scheduled", "publishing", "published", "demo_published", "failed"].includes(s);
 }
+
+// Remove a post from the plan. The uploaded media is KEPT in the library — this
+// only takes the post out of the schedule/grid.
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const denied = guard();
+  if (denied) return denied;
+
+  await updateDb((db) => {
+    db.posts = db.posts.filter((p) => p.id !== params.id);
+    db.posts.sort((a, b) => a.order - b.order).forEach((p, i) => (p.order = i));
+  });
+  return json({ ok: true });
+}
