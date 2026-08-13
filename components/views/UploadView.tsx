@@ -261,6 +261,19 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
         </div>
       )}
 
+      {/* Prominent Generate Plan call-to-action */}
+      {media.length > 0 && (
+        <div className="card mt24" style={{ padding: 18, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", borderColor: "var(--accent)" }}>
+          <div className="grow">
+            <b style={{ fontSize: 16 }}>Ready to plan {selected.size || media.length} {(selected.size || media.length) === 1 ? "item" : "items"}</b>
+            <div className="tiny muted mt8">AI writes a caption, hashtags, and a posting time for every photo & video, then builds your Instagram grid.</div>
+          </div>
+          <button className="btn primary lg" onClick={generate} disabled={generating}>
+            <IconSparkle size={18} /> Generate Plan
+          </button>
+        </div>
+      )}
+
       {/* Content library */}
       {media.length > 0 && (
         <div className="mt24">
