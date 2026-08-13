@@ -47,7 +47,8 @@ export type PostStatus =
 
 export interface Post {
   id: string;
-  mediaId: string;
+  mediaId: string; // cover / first item (kept for back-compat)
+  mediaIds?: string[]; // all items; >1 means an Instagram carousel post
   order: number; // position in the planned sequence
   caption: string;
   hashtags: string[];

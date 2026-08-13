@@ -1,6 +1,6 @@
 import { readDb, updateDb } from "./db";
 import { publishPost } from "./instagram";
-import type { Post } from "./types";
+import type { Post, MediaItem } from "./types";
 
 // Publishing service. Honors demo mode so test content is NEVER sent to
 // Instagram, and only reports "published" when the real API confirms it.
@@ -16,8 +16,11 @@ export async function publishOne(postId: string, opts?: { force?: boolean }): Pr
   const db = await readDb();
   const post = db.posts.find((p) => p.id === postId);
   if (!post) return { postId, status: "failed", error: "Post not found" };
-  const media = db.media.find((m) => m.id === post.mediaId);
-  if (!media) {
+  const mediaIds = post.mediaIds && post.mediaIds.length ? post.mediaIds : [post.mediaId];
+  const mediaItems = mediaIds
+    .map((id) => db.media.find((m) => m.id === id))
+    .filter(Boolean) as MediaItem[];
+  if (!mediaItems.length) {
     await setStatus(postId, "failed", "Media file missing");
     return { postId, status: "failed", error: "Media file missing" };
   }
@@ -48,7 +51,7 @@ export async function publishOne(postId: string, opts?: { force?: boolean }): Pr
   try {
     const result = await publishPost(
       post,
-      media,
+      mediaItems,
       db.secrets.instagramAccessToken,
       db.instagram.igUserId,
     );

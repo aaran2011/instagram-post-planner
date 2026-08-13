@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useRef, useState } from "react";
 import { useApp, Modal, CloseButton, Segmented, Spinner } from "./ui";
-import { api, mediaById } from "./store";
+import { api, mediaById, postMediaIds } from "./store";
 import type { Post } from "./store";
 import { localParts, zonedTimeToUtc, formatLocal, tzAbbrev } from "@/lib/schedule";
 import { tzListWith } from "./tz";
@@ -73,6 +73,7 @@ export default function PostModal({ postId, onClose }: { postId: string; onClose
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState<{ at: string } | null>(null);
+  const [carIdx, setCarIdx] = useState(0);
 
   const isVideo = media?.type === "video";
 
@@ -95,6 +96,12 @@ export default function PostModal({ postId, onClose }: { postId: string; onClose
       </Modal>
     );
   }
+
+  const carItems = postMediaIds(post)
+    .map((id) => mediaById(state, id))
+    .filter((x): x is NonNullable<typeof x> => Boolean(x));
+  const isCarousel = carItems.length > 1;
+  const shown = carItems[Math.min(carIdx, carItems.length - 1)] || media;
 
   async function removeFromPlan() {
     if (!confirm("Remove this post from your plan? Your uploaded file stays in the library — nothing is deleted.")) return;
@@ -189,7 +196,21 @@ export default function PostModal({ postId, onClose }: { postId: string; onClose
               <div className="uname">{state.instagram.username ? `@${state.instagram.username}` : "your_handle"}</div>
               <div className="right muted" style={{ fontSize: 18, lineHeight: 0 }}>⋯</div>
             </div>
-            <div className="igmedia"><img src={media.url} alt="" /></div>
+            <div className="igmedia" style={{ position: "relative" }}>
+              <img src={shown.url} alt="" />
+              {isCarousel && (
+                <>
+                  <button onClick={() => setCarIdx((i) => Math.max(0, Math.min(carItems.length - 1, i) - 1))} disabled={carIdx <= 0}
+                    style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.5)", color: "#fff", border: "none", borderRadius: "50%", width: 30, height: 30, display: "grid", placeItems: "center", cursor: "pointer" }}>‹</button>
+                  <button onClick={() => setCarIdx((i) => Math.min(carItems.length - 1, i + 1))} disabled={carIdx >= carItems.length - 1}
+                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,0.5)", color: "#fff", border: "none", borderRadius: "50%", width: 30, height: 30, display: "grid", placeItems: "center", cursor: "pointer" }}>›</button>
+                  <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 12, padding: "2px 9px", borderRadius: 999 }}>{Math.min(carIdx, carItems.length - 1) + 1}/{carItems.length}</div>
+                  <div style={{ position: "absolute", bottom: 10, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
+                    {carItems.map((_, k) => <span key={k} style={{ width: 6, height: 6, borderRadius: "50%", background: k === Math.min(carIdx, carItems.length - 1) ? "#fff" : "rgba(255,255,255,0.5)" }} />)}
+                  </div>
+                </>
+              )}
+            </div>
             {music && (
               <div className="igmusic"><IconMusic size={15} /> <span><b>{music.name}</b> · {music.artist}</span></div>
             )}

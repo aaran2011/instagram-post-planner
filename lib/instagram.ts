@@ -187,12 +187,7 @@ export interface PublishResult {
   igMediaId: string;
 }
 
-export async function publishPost(
-  post: Post,
-  media: MediaItem,
-  accessToken: string,
-  igUserId: string,
-): Promise<PublishResult> {
+function urlFor(media: MediaItem): string {
   const url = publicMediaUrl(media);
   if (!url) {
     throw new Error(
@@ -200,31 +195,79 @@ export async function publishPost(
         IG_LIMITATIONS.requiresPublicUrl,
     );
   }
-  const caption = [post.caption, post.cta, post.hashtags.join(" ")]
-    .filter(Boolean)
-    .join("\n\n");
+  return url;
+}
 
-  let creationId: string;
+// Create a single (non-carousel) container and return its id.
+async function createSingle(media: MediaItem, caption: string, igUserId: string, accessToken: string) {
+  const url = urlFor(media);
   if (media.type === "video") {
-    const container = await graphPost(`/${igUserId}/media`, {
+    const c = await graphPost(`/${igUserId}/media`, {
       access_token: accessToken,
       media_type: "REELS",
       video_url: url,
       caption,
     });
-    creationId = container.id;
-  } else {
+    return c.id as string;
+  }
+  const c = await graphPost(`/${igUserId}/media`, {
+    access_token: accessToken,
+    image_url: url,
+    caption,
+  });
+  return c.id as string;
+}
+
+// Create a carousel child container (no caption on children).
+async function createCarouselChild(media: MediaItem, igUserId: string, accessToken: string) {
+  const url = urlFor(media);
+  if (media.type === "video") {
+    const c = await graphPost(`/${igUserId}/media`, {
+      access_token: accessToken,
+      media_type: "VIDEO",
+      video_url: url,
+      is_carousel_item: "true",
+    });
+    await waitForContainer(c.id, accessToken);
+    return c.id as string;
+  }
+  const c = await graphPost(`/${igUserId}/media`, {
+    access_token: accessToken,
+    image_url: url,
+    is_carousel_item: "true",
+  });
+  return c.id as string;
+}
+
+export async function publishPost(
+  post: Post,
+  mediaItems: MediaItem[],
+  accessToken: string,
+  igUserId: string,
+): Promise<PublishResult> {
+  const caption = [post.caption, post.cta, post.hashtags.join(" ")]
+    .filter(Boolean)
+    .join("\n\n");
+
+  let creationId: string;
+  if (mediaItems.length > 1) {
+    // Carousel: a child container per item, then a CAROUSEL parent.
+    const childIds: string[] = [];
+    for (const m of mediaItems) {
+      childIds.push(await createCarouselChild(m, igUserId, accessToken));
+    }
     const container = await graphPost(`/${igUserId}/media`, {
       access_token: accessToken,
-      image_url: url,
+      media_type: "CAROUSEL",
       caption,
+      children: childIds.join(","),
     });
     creationId = container.id;
+  } else {
+    creationId = await createSingle(mediaItems[0], caption, igUserId, accessToken);
   }
 
-  // Wait until the container finishes processing before publishing. Even image
-  // containers start as IN_PROGRESS and briefly need to become FINISHED, or
-  // media_publish fails with "Media ID is not available".
+  // Container must be FINISHED before publishing (else "Media ID is not available").
   await waitForContainer(creationId, accessToken);
 
   const published = await graphPost(`/${igUserId}/media_publish`, {

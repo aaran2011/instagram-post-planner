@@ -7,6 +7,7 @@ import { api, fmtDuration } from "../store";
 import type { ClientMedia } from "../store";
 import { extract, isAccepted, ACCEPT_ATTR } from "../media-utils";
 import GenerateOverlay from "../GenerateOverlay";
+import PostComposer from "../PostComposer";
 import {
   IconUpload, IconPlus, IconTrash, IconVideo, IconCheck, IconSparkle,
   IconAlert, IconGrid,
@@ -254,8 +255,8 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
       const elapsed = Date.now() - started;
       if (elapsed < 2600) await new Promise((r) => setTimeout(r, 2600 - elapsed));
       setState(res);
-      toast(`Plan ready — ${res.generated} posts`, "ok");
-      go("plan");
+      toast(`Added ${res.generated} post${res.generated === 1 ? "" : "s"} to your calendar`, "ok");
+      go("calendar");
     } catch (e: any) {
       toast(e.message || "Could not generate plan", "err");
     } finally {
@@ -302,6 +303,9 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
           onChange={(e) => { if (e.target.files) handleFiles(e.target.files); e.currentTarget.value = ""; }}
         />
       </div>
+
+      {/* Carousel post composer */}
+      <PostComposer />
 
       {/* Active upload queue */}
       {queue.length > 0 && (

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { useApp } from "../ui";
-import { api, mediaById } from "../store";
+import { api, mediaById, postMediaIds } from "../store";
 import type { Post } from "../store";
 import { formatLocal } from "@/lib/schedule";
 import GenerateOverlay from "../GenerateOverlay";
@@ -103,6 +103,11 @@ export default function PlanView() {
               {m ? <img src={m.thumbUrl} alt="" loading="lazy" /> : <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)" }}><IconAlert /></div>}
               <span className="ord">{p.order + 1}</span>
               {m?.type === "video" && <span className="type">{p.format === "reel" ? <IconReel size={16} /> : <IconVideo size={16} />}</span>}
+              {postMediaIds(p).length > 1 && (
+                <span className="type" style={{ right: 6, top: m?.type === "video" ? 30 : 6, background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "1px 7px" }}>
+                  ▤ {postMediaIds(p).length}
+                </span>
+              )}
               <StatusDot status={p.status} />
               <div className="when">{when.date} · {when.time}</div>
             </div>

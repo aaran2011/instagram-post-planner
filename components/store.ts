@@ -86,3 +86,8 @@ export function fmtDuration(sec: number | null) {
 export function mediaById(state: ClientState, id: string) {
   return state.media.find((m) => m.id === id);
 }
+
+// A post's media items (>1 = carousel). Handles older posts with only mediaId.
+export function postMediaIds(post: Post): string[] {
+  return post.mediaIds && post.mediaIds.length ? post.mediaIds : [post.mediaId];
+}

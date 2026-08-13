@@ -75,47 +75,80 @@ async function planForItem(item: MediaItem, settings: Settings): Promise<ItemPla
   return { item, analysis, caption, cta, hashtags, music };
 }
 
-// Analyze all media, choose a varied order, and build scheduled draft posts.
-export async function generatePlan(media: MediaItem[], settings: Settings): Promise<Post[]> {
-  const plans = await mapLimit(media, claudeAvailable() ? 4 : 16, (m) => planForItem(m, settings));
+export interface GenerateOpts {
+  // Each group is a set of mediaIds that become ONE post (carousel if >1).
+  // If omitted, every media item becomes its own single-image post.
+  groups?: string[][];
+  startOrder?: number; // append after existing posts
+  startAfter?: Date; // schedule after the last existing post
+}
 
-  // Persist analysis onto the media objects (mutates the passed items).
-  for (const p of plans) p.item.analysis = p.analysis;
+// Analyze media, choose an order, and build scheduled draft posts. Supports
+// carousel groups and appending after an existing plan.
+export async function generatePlan(
+  media: MediaItem[],
+  settings: Settings,
+  opts: GenerateOpts = {},
+): Promise<Post[]> {
+  const { groups, startOrder = 0, startAfter } = opts;
+  const mediaById = new Map(media.map((m) => [m.id, m]));
 
-  const order = optimizeOrder(plans.map((p) => ({ item: p.item, a: p.analysis })));
-  const byId = new Map(plans.map((p) => [p.item.id, p]));
+  // A "unit" is one post: its cover (for analysis) + all its mediaIds.
+  let units: { coverId: string; mediaIds: string[] }[];
+  if (groups && groups.length) {
+    units = groups
+      .map((g) => g.filter((id) => mediaById.has(id)))
+      .filter((g) => g.length > 0)
+      .map((g) => ({ coverId: g[0], mediaIds: g }));
+  } else {
+    units = media.map((m) => ({ coverId: m.id, mediaIds: [m.id] }));
+  }
 
-  const slots = buildSlots(order.length, {
+  const plans = await mapLimit(units, claudeAvailable() ? 4 : 16, async (u) => {
+    const cover = mediaById.get(u.coverId)!;
+    const p = await planForItem(cover, settings);
+    p.item.analysis = p.analysis; // persist analysis onto the cover media
+    return { unit: u, ...p };
+  });
+
+  // Keep the user's composed order for groups; optimize for auto single posts.
+  let ordered = plans;
+  if (!(groups && groups.length)) {
+    const order = optimizeOrder(plans.map((p) => ({ item: p.item, a: p.analysis })));
+    const byCover = new Map(plans.map((p) => [p.unit.coverId, p]));
+    ordered = order.map((id) => byCover.get(id)!).filter(Boolean) as typeof plans;
+  }
+
+  const slots = buildSlots(ordered.length, {
     times: settings.defaultTimes,
     cadenceDays: settings.postingCadenceDays,
     tz: settings.timezone,
+    from: startAfter,
   });
 
   const now = new Date().toISOString();
-  return order.map((mediaId, i) => {
-    const p = byId.get(mediaId)!;
-    return {
-      id: newId("post"),
-      mediaId,
-      order: i,
-      caption: p.caption,
-      hashtags: p.hashtags,
-      cta: p.cta,
-      category: p.analysis.category,
-      mood: p.analysis.mood,
-      subject: p.analysis.subject,
-      format: p.analysis.format,
-      music: p.music,
-      scheduledAt: (slots[i] ?? new Date()).toISOString(),
-      timezone: settings.timezone,
-      status: "draft",
-      igMediaId: null,
-      error: null,
-      publishedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    } satisfies Post;
-  });
+  return ordered.map((p, i) => ({
+    id: newId("post"),
+    mediaId: p.unit.coverId,
+    mediaIds: p.unit.mediaIds,
+    order: startOrder + i,
+    caption: p.caption,
+    hashtags: p.hashtags,
+    cta: p.cta,
+    category: p.analysis.category,
+    mood: p.analysis.mood,
+    subject: p.analysis.subject,
+    format: p.unit.mediaIds.length > 1 ? "post" : p.analysis.format,
+    music: p.music,
+    scheduledAt: (slots[i] ?? new Date()).toISOString(),
+    timezone: settings.timezone,
+    status: "draft",
+    igMediaId: null,
+    error: null,
+    publishedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  } satisfies Post));
 }
 
 // Also persist analysis back onto media so the library can show it.
