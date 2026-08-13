@@ -5,7 +5,6 @@ import { api, mediaById } from "./store";
 import type { Post } from "./store";
 import { localParts, zonedTimeToUtc, formatLocal, tzAbbrev } from "@/lib/schedule";
 import { tzListWith } from "./tz";
-import { postWarnings } from "./quality";
 import {
   IconHeart, IconComment, IconShare, IconBookmark, IconMusic, IconPlay, IconPause,
   IconRefresh, IconPlus, IconClose, IconSparkle, IconAlert, IconClock, IconReel,
@@ -96,8 +95,6 @@ export default function PostModal({ postId, onClose }: { postId: string; onClose
       </Modal>
     );
   }
-
-  const warns = postWarnings(media, post, state.posts, (id) => mediaById(state, id));
 
   async function removeFromPlan() {
     if (!confirm("Remove this post from your plan? Your uploaded file stays in the library — nothing is deleted.")) return;
@@ -239,20 +236,6 @@ export default function PostModal({ postId, onClose }: { postId: string; onClose
         </div>
 
         <div className="escroll stack gap16">
-          {/* Quality suggestions (non-destructive) */}
-          {warns.length > 0 && (
-            <div className="banner warn">
-              <IconAlert size={16} className="bicon" />
-              <div>
-                <b>Heads up — this post might underperform:</b>
-                <ul style={{ margin: "6px 0 4px", paddingLeft: 18 }}>
-                  {warns.map((wtext, i) => <li key={i} style={{ marginBottom: 3 }}>{wtext}</li>)}
-                </ul>
-                <span className="tiny">Just a suggestion — nothing is removed automatically. You can keep it, edit it, or use <b>Remove from plan</b> below.</span>
-              </div>
-            </div>
-          )}
-
           {/* Caption */}
           <div>
             <div className="flex mb8"><span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)" }}>CAPTION</span>

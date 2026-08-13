@@ -4,7 +4,6 @@ import { useApp } from "../ui";
 import { api, mediaById } from "../store";
 import type { Post } from "../store";
 import { formatLocal } from "@/lib/schedule";
-import { postWarnings } from "../quality";
 import GenerateOverlay from "../GenerateOverlay";
 import { IconVideo, IconReel, IconSparkle, IconGrid, IconCheck, IconClock, IconAlert } from "../icons";
 
@@ -89,7 +88,6 @@ export default function PlanView() {
         {posts.map((p) => {
           const m = mediaById(state, p.mediaId);
           const when = formatLocal(p.scheduledAt, p.timezone);
-          const warns = postWarnings(m, p, posts, (id) => mediaById(state, id));
           return (
             <div
               key={p.id}
@@ -105,12 +103,6 @@ export default function PlanView() {
               {m ? <img src={m.thumbUrl} alt="" loading="lazy" /> : <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--text-3)" }}><IconAlert /></div>}
               <span className="ord">{p.order + 1}</span>
               {m?.type === "video" && <span className="type">{p.format === "reel" ? <IconReel size={16} /> : <IconVideo size={16} />}</span>}
-              {warns.length > 0 && (
-                <span className="pill warn" style={{ position: "absolute", top: 6, left: 34, padding: "2px 6px" }}
-                  title={warns.join("\n")}>
-                  <IconAlert size={11} />
-                </span>
-              )}
               <StatusDot status={p.status} />
               <div className="when">{when.date} · {when.time}</div>
             </div>

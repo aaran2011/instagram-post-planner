@@ -161,6 +161,20 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
     }
   }
 
+  async function deleteAll() {
+    if (!media.length) return;
+    if (!confirm(`Delete ALL ${media.length} item${media.length > 1 ? "s" : ""}? This removes every uploaded photo/video and any planned posts. This can’t be undone.`)) return;
+    const ids = media.map((m) => m.id);
+    try {
+      await api.post("/api/media/delete", { ids });
+      setState((prev) => ({ ...prev, media: [], posts: [] }));
+      clearSel();
+      toast("All items deleted", "ok");
+    } catch (e: any) {
+      toast(e.message, "err");
+    }
+  }
+
   async function generate() {
     if (!media.length) return;
     const ids = selected.size ? Array.from(selected) : media.map((m) => m.id);
@@ -280,6 +294,7 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
               <button className="btn sm subtle" onClick={selectAll}>Select all</button>
             )}
             <button className="btn sm subtle" onClick={() => inputRef.current?.click()}><IconPlus size={15} /> Add more</button>
+            <button className="btn sm danger" onClick={deleteAll}><IconTrash size={15} /> Delete all</button>
             <div className="right" />
             <button className="btn primary" onClick={generate} disabled={generating}>
               <IconSparkle size={16} /> Generate Plan{selected.size ? ` (${selected.size})` : ""}
