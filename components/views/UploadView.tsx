@@ -65,17 +65,20 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
             updateQ(item.id, { thumbUrl: turl });
           }
 
-          // Production: upload the (possibly large) file DIRECTLY to Blob from
-          // the browser, avoiding the serverless request-size limit.
-          if (blobDirect) {
+          // Only genuinely large files (> 4MB) need the direct-to-Blob path
+          // (which bypasses the serverless size limit). Normal-size files go
+          // through the reliable server route below.
+          if (blobDirect && file.size > 4 * 1024 * 1024) {
+            const ctrl = new AbortController();
+            const stall = setTimeout(() => ctrl.abort(), 120000); // fail fast, never hang
             try {
               updateQ(item.id, { status: "uploading", progress: 0 });
-              // Upload the ORIGINAL file — full quality, no resizing/re-encoding.
               const ext = extFor(file);
               const fileRes = await upload(`uploads/${item.id}${ext}`, file, {
                 access: "public",
                 handleUploadUrl: "/api/blob/upload",
                 contentType: file.type || undefined,
+                abortSignal: ctrl.signal,
                 onUploadProgress: (p) =>
                   updateQ(item.id, { status: "uploading", progress: Math.round(p.percentage) }),
               });
@@ -85,6 +88,7 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
                   access: "public",
                   handleUploadUrl: "/api/blob/upload",
                   contentType: "image/jpeg",
+                  abortSignal: ctrl.signal,
                 });
                 thumbUrl = tRes.url;
               }
@@ -103,7 +107,12 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
               updateQ(item.id, { status: "done", progress: 100 });
               setTimeout(() => setQueue((q) => q.filter((x) => x.id !== item.id)), 700);
             } catch (e: any) {
-              updateQ(item.id, { status: "error", error: (e?.message || "Upload failed").slice(0, 140) });
+              updateQ(item.id, {
+                status: "error",
+                error: (ctrl.signal.aborted ? "Upload stalled (timed out)." : e?.message || "Upload failed").slice(0, 140),
+              });
+            } finally {
+              clearTimeout(stall);
             }
             resolve();
             return;
