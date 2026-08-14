@@ -145,6 +145,80 @@ export function optimizeImage(
   });
 }
 
+// Instagram feed accepts aspect ratios between 4:5 (0.8) and 1.91:1. Images
+// outside that get CENTER-CROPPED by Instagram (cutting the subject). To avoid
+// that non-destructively, pad an out-of-range PHOTO onto a canvas of the nearest
+// allowed ratio — the full original sits centered, with a blurred fill in the
+// bars — and send that to Instagram. Returns null when no padding is needed
+// (in-range images are sent untouched) or for non-images.
+const IG_MIN_RATIO = 0.8; // 4:5 (tallest portrait)
+const IG_MAX_RATIO = 1.91; // 1.91:1 (widest landscape)
+
+export function padForInstagram(file: File): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith("image/")) return resolve(null);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const ratio = w / h;
+      if (!w || !h || (ratio >= IG_MIN_RATIO && ratio <= IG_MAX_RATIO)) {
+        URL.revokeObjectURL(url);
+        return resolve(null); // already valid — send the original
+      }
+      // Nearest allowed ratio; expand the OTHER dimension (never crop).
+      let cw: number;
+      let ch: number;
+      if (ratio < IG_MIN_RATIO) {
+        // too tall -> widen (pad left/right)
+        ch = h;
+        cw = Math.round(IG_MIN_RATIO * h);
+      } else {
+        // too wide -> heighten (pad top/bottom)
+        cw = w;
+        ch = Math.round(w / IG_MAX_RATIO);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(url);
+        return resolve(null);
+      }
+      // Solid base (in case blur is unsupported), then a blurred cover fill.
+      ctx.fillStyle = "#111";
+      ctx.fillRect(0, 0, cw, ch);
+      try {
+        ctx.filter = "blur(28px)";
+        const cover = Math.max(cw / w, ch / h);
+        const dw = w * cover;
+        const dh = h * cover;
+        ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+        ctx.filter = "none";
+      } catch {
+        /* blur unsupported -> solid bars */
+      }
+      // The full, unscaled original, centered — nothing cropped.
+      ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+      canvas.toBlob(
+        (b) => {
+          URL.revokeObjectURL(url);
+          resolve(b);
+        },
+        "image/jpeg",
+        0.95,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
 export const ACCEPTED = [
   "image/jpeg", "image/jpg", "image/png", "image/webp", "video/mp4", "video/quicktime",
 ];

@@ -33,6 +33,9 @@ export interface MediaItem {
   // /api/media/* routes instead).
   fileUrl?: string | null;
   thumbUrl?: string | null;
+  // Instagram-ready URL: an aspect-padded copy for images outside 4:5–1.91:1
+  // (so IG can't crop the subject). Absent/null => send the original fileUrl.
+  igUrl?: string | null;
   createdAt: string; // ISO
   analysis: MediaAnalysis | null;
 }

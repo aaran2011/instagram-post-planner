@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
       thumb: thumbKey,
       fileUrl: stored.url,
       thumbUrl: thumbUrl,
+      igUrl: (form.get("igUrl") && String(form.get("igUrl"))) || null,
       createdAt: new Date().toISOString(),
       analysis: null,
     };

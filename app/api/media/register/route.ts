@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     thumb: body?.thumbUrl ? String(body.thumbUrl) : null,
     fileUrl,
     thumbUrl: body?.thumbUrl ? String(body.thumbUrl) : null,
+    igUrl: body?.igUrl ? String(body.igUrl) : null,
     createdAt: new Date().toISOString(),
     analysis: null,
   };

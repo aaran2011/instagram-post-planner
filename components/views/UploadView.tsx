@@ -5,7 +5,7 @@ import { useApp } from "../ui";
 import { Segmented } from "../ui";
 import { api, fmtDuration } from "../store";
 import type { ClientMedia } from "../store";
-import { extract, isAccepted, ACCEPT_ATTR } from "../media-utils";
+import { extract, padForInstagram, isAccepted, ACCEPT_ATTR } from "../media-utils";
 import GenerateOverlay from "../GenerateOverlay";
 import PostComposer from "../PostComposer";
 import {
@@ -66,6 +66,25 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
             updateQ(item.id, { thumbUrl: turl });
           }
 
+          // Non-destructive Instagram fix: if the photo is outside IG's allowed
+          // aspect range, upload a padded copy (full image kept) for publishing.
+          let igUrl: string | undefined;
+          if (blobDirect) {
+            try {
+              const padded = await padForInstagram(file);
+              if (padded) {
+                const igRes = await upload(`ig/${item.id}.jpg`, padded, {
+                  access: "public",
+                  handleUploadUrl: "/api/blob/upload",
+                  contentType: "image/jpeg",
+                });
+                igUrl = igRes.url;
+              }
+            } catch {
+              /* padding failed -> publish the original (may be IG-cropped) */
+            }
+          }
+
           // Only genuinely large files (> 4MB) need the direct-to-Blob path
           // (which bypasses the serverless size limit). Normal-size files go
           // through the reliable server route below.
@@ -96,6 +115,7 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
               const res = await api.post("/api/media/register", {
                 fileUrl: fileRes.url,
                 thumbUrl,
+                igUrl,
                 type: item.type,
                 originalName: file.name,
                 mime: file.type,
@@ -122,6 +142,7 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
           const fd = new FormData();
           fd.append("file", file);
           if (meta.thumb) fd.append("thumb", meta.thumb, "thumb.jpg");
+          if (igUrl) fd.append("igUrl", igUrl);
           fd.append("originalName", file.name);
           if (meta.width) fd.append("width", String(meta.width));
           if (meta.height) fd.append("height", String(meta.height));

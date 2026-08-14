@@ -174,6 +174,8 @@ export async function connectWithManualToken(): Promise<ConnectResult> {
 // ---- Publishing ----
 
 function publicMediaUrl(media: MediaItem): string | null {
+  // Prefer the aspect-padded copy (so Instagram can't crop the subject).
+  if (media.igUrl && /^https?:\/\//i.test(media.igUrl)) return media.igUrl;
   // With Vercel Blob the media already has an absolute, public CDN URL —
   // Instagram can fetch it directly and no PUBLIC_BASE_URL is needed.
   if (media.fileUrl && /^https?:\/\//i.test(media.fileUrl)) return media.fileUrl;
