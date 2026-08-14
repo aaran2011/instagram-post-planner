@@ -11,9 +11,16 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   let dbRead = "ok";
   let mediaCount = -1;
+  const postsByStatus: Record<string, number> = {};
+  let nextDue: string | null = null;
   try {
     const db = await readDb();
     mediaCount = db.media.length;
+    for (const p of db.posts) postsByStatus[p.status] = (postsByStatus[p.status] || 0) + 1;
+    const scheduled = db.posts
+      .filter((p) => p.status === "scheduled")
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+    nextDue = scheduled[0]?.scheduledAt ?? null;
   } catch (e: any) {
     dbRead = String(e?.message || e).slice(0, 300);
   }
@@ -27,6 +34,8 @@ export async function GET() {
     hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
     dbRead,
     mediaCount,
+    postsByStatus,
+    nextScheduled: nextDue,
     // Instagram OAuth wiring (no secret value — only what the app sends/uses).
     instagramRedirectUri: config.ig.redirectUri,
     instagramAppId: config.ig.appId,

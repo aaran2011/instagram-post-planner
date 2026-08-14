@@ -9,6 +9,14 @@ import { IconChevronL, IconChevronR, IconCalendar, IconTrash } from "../icons";
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+function statusBadge(status: Post["status"]) {
+  if (status === "published") return { color: "var(--success)", label: "Posted ✓" };
+  if (status === "demo_published") return { color: "var(--accent)", label: "Posted (demo)" };
+  if (status === "failed") return { color: "var(--danger)", label: "Failed" };
+  if (status === "publishing") return { color: "var(--warn)", label: "Posting…" };
+  return null;
+}
+
 function dayKeyOf(iso: string, tz: string) {
   const p = localParts(new Date(iso), tz);
   return `${p.year}-${p.month}-${p.day}`;
@@ -83,6 +91,7 @@ export default function CalendarView() {
         {posts.map((p) => {
           const media = mediaById(state, p.mediaId);
           const when = formatLocal(p.scheduledAt, p.timezone);
+          const sb = statusBadge(p.status);
           return (
             <div
               key={p.id}
@@ -91,10 +100,12 @@ export default function CalendarView() {
               onDragStart={() => setDragId(p.id)}
               onDragEnd={() => { setDragId(null); setOverKey(null); }}
               onClick={() => openPost(p.id)}
-              title={`${when.time} · ${media?.originalName || ""}`}
+              title={`${when.time}${sb ? " · " + sb.label : ""} · ${media?.originalName || ""}`}
+              style={sb ? { borderColor: sb.color } : undefined}
             >
               {media && <img src={media.thumbUrl} alt="" />}
               <span className="cptext">{when.time}</span>
+              {sb && <span style={{ width: 7, height: 7, borderRadius: "50%", background: sb.color, flex: "none", marginLeft: "auto", marginRight: 2 }} title={sb.label} />}
             </div>
           );
         })}
@@ -148,6 +159,7 @@ export default function CalendarView() {
           {posts.map((p) => {
             const media = mediaById(state, p.mediaId);
             const when = formatLocal(p.scheduledAt, p.timezone);
+            const sb = statusBadge(p.status);
             return (
               <div key={p.id} className="row" onClick={() => openPost(p.id)} style={{ cursor: "pointer" }}>
                 {media && <img src={media.thumbUrl} alt="" />}
@@ -155,6 +167,7 @@ export default function CalendarView() {
                   <div className="rowtitle">{when.time} · {p.category}</div>
                   <div className="rowsub">{p.caption.slice(0, 70)}</div>
                 </div>
+                {sb && <span className="pill" style={{ color: sb.color, borderColor: sb.color }}>{sb.label}</span>}
               </div>
             );
           })}
