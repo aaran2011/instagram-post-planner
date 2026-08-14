@@ -49,6 +49,31 @@ export default function CalendarView() {
 
   const todayKey = keyOf(now.getFullYear(), now.getMonth() + 1, now.getDate());
 
+  async function scheduleAll() {
+    const drafts = state.posts.filter((p) => p.status === "draft");
+    if (!drafts.length) return;
+    const demo = state.settings.demoMode;
+    if (!confirm(
+      demo
+        ? `Schedule all ${drafts.length} draft(s)? (Demo mode is ON — nothing is sent to Instagram.)`
+        : `Schedule all ${drafts.length} draft(s) to publish to Instagram at their set times? Any already due will post now.`,
+    )) return;
+    try {
+      const res = await api.post("/api/publish", {});
+      setState(res);
+      const s = res.summary || {};
+      toast(
+        `Scheduled ${s.scheduled || 0}` +
+          (s.published ? ` · posted ${s.published}` : "") +
+          (s.demoPublished ? ` · ${s.demoPublished} demo` : "") +
+          (s.failed ? ` · ${s.failed} failed` : ""),
+        s.failed ? "err" : "ok",
+      );
+    } catch (e: any) {
+      toast(e.message, "err");
+    }
+  }
+
   async function clearCalendar() {
     if (!state.posts.length) return;
     if (!confirm(`Clear all ${state.posts.length} post${state.posts.length > 1 ? "s" : ""} from the calendar? Your uploaded photos stay in the library — only the schedule is cleared.`)) return;
@@ -221,8 +246,9 @@ export default function CalendarView() {
         <div className="banner warn mb16">
           <IconAlert size={16} className="bicon" />
           <div>
-            <b>{draftCount} post{draftCount > 1 ? "s are" : " is"} still a draft</b> and won’t publish. To actually schedule and post {draftCount > 1 ? "them" : "it"}, open Review and confirm.{" "}
-            <button className="btn sm primary" style={{ marginLeft: 6 }} onClick={() => go("review")}>Review &amp; Schedule</button>
+            <b>{draftCount} post{draftCount > 1 ? "s are" : " is"} still a draft</b> and won’t publish on {draftCount > 1 ? "their" : "its"} own. Schedule {draftCount > 1 ? "them" : "it"} to go live at the set times.{" "}
+            <button className="btn sm primary" style={{ marginLeft: 6 }} onClick={scheduleAll}>Schedule all now</button>
+            <button className="btn sm ghost" onClick={() => go("review")}>Review first</button>
           </div>
         </div>
       )}

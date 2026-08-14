@@ -7,7 +7,7 @@ import { localParts, zonedTimeToUtc, formatLocal, tzAbbrev } from "@/lib/schedul
 import { tzListWith } from "./tz";
 import {
   IconHeart, IconComment, IconShare, IconBookmark, IconMusic, IconPlay, IconPause,
-  IconRefresh, IconPlus, IconClose, IconSparkle, IconAlert, IconClock, IconReel,
+  IconRefresh, IconPlus, IconClose, IconSparkle, IconAlert, IconClock, IconReel, IconRocket,
 } from "./icons";
 
 function VideoReel({ src, poster }: { src: string; poster?: string }) {
@@ -102,6 +102,30 @@ export default function PostModal({ postId, onClose }: { postId: string; onClose
     .filter((x): x is NonNullable<typeof x> => Boolean(x));
   const isCarousel = carItems.length > 1;
   const shown = carItems[Math.min(carIdx, carItems.length - 1)] || media;
+
+  const [posting, setPosting] = useState(false);
+  async function postNow() {
+    const demo = state.settings.demoMode;
+    if (!confirm(demo
+      ? "Publish now? Demo mode is ON — nothing is sent to Instagram."
+      : "Publish this post to Instagram right now?")) return;
+    setPosting(true);
+    try {
+      const res = await api.post("/api/publish", { postId: post!.id });
+      setState(res);
+      const o = res.outcome || {};
+      if (o.status === "failed") {
+        toast("Failed: " + (o.error || "unknown"), "err");
+      } else {
+        toast(o.status === "demo_published" ? "Demo‑published" : "Published to Instagram ✓", "ok");
+        onClose();
+      }
+    } catch (e: any) {
+      toast(e.message, "err");
+    } finally {
+      setPosting(false);
+    }
+  }
 
   async function removeFromPlan() {
     if (!confirm("Remove this post from your plan? Your uploaded file stays in the library — nothing is deleted.")) return;
@@ -374,6 +398,11 @@ export default function PostModal({ postId, onClose }: { postId: string; onClose
             <IconClose size={14} /> Remove from plan
           </button>
           <div className="right" />
+          {post.status !== "published" && post.status !== "demo_published" && (
+            <button className="btn subtle" onClick={postNow} disabled={posting} title="Publish this post to Instagram immediately">
+              {posting ? <Spinner dark /> : <IconRocket size={16} />} Post now
+            </button>
+          )}
           <button className="btn ghost" onClick={onClose}>Cancel</button>
           <button className="btn primary" onClick={() => save(false)} disabled={saving}>
             {saving ? <Spinner /> : null} Save Changes
