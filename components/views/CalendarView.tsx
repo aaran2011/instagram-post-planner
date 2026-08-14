@@ -4,7 +4,7 @@ import { useApp, Segmented } from "../ui";
 import { api, mediaById } from "../store";
 import type { Post } from "../store";
 import { localParts, zonedTimeToUtc, formatLocal } from "@/lib/schedule";
-import { IconChevronL, IconChevronR, IconCalendar, IconTrash } from "../icons";
+import { IconChevronL, IconChevronR, IconCalendar, IconTrash, IconAlert } from "../icons";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -14,6 +14,8 @@ function statusBadge(status: Post["status"]) {
   if (status === "demo_published") return { color: "var(--accent)", label: "Posted (demo)" };
   if (status === "failed") return { color: "var(--danger)", label: "Failed" };
   if (status === "publishing") return { color: "var(--warn)", label: "Posting…" };
+  if (status === "scheduled") return { color: "var(--accent)", label: "Scheduled" };
+  if (status === "draft") return { color: "var(--text-3)", label: "Draft — not scheduled" };
   return null;
 }
 
@@ -24,7 +26,8 @@ function dayKeyOf(iso: string, tz: string) {
 function keyOf(y: number, m: number, d: number) { return `${y}-${m}-${d}`; }
 
 export default function CalendarView() {
-  const { state, openPost, setState, toast } = useApp();
+  const { state, openPost, setState, toast, go } = useApp();
+  const draftCount = state.posts.filter((p) => p.status === "draft").length;
   const [mode, setMode] = useState<"month" | "week" | "day">("month");
   const now = new Date();
   const [cursor, setCursor] = useState({ y: now.getFullYear(), m: now.getMonth() }); // month 0-11
@@ -213,6 +216,16 @@ export default function CalendarView() {
         <div className="right" />
         {state.posts.length === 0 && <span className="pill"><IconCalendar size={13} /> Nothing scheduled yet</span>}
       </div>
+
+      {draftCount > 0 && (
+        <div className="banner warn mb16">
+          <IconAlert size={16} className="bicon" />
+          <div>
+            <b>{draftCount} post{draftCount > 1 ? "s are" : " is"} still a draft</b> and won’t publish. To actually schedule and post {draftCount > 1 ? "them" : "it"}, open Review and confirm.{" "}
+            <button className="btn sm primary" style={{ marginLeft: 6 }} onClick={() => go("review")}>Review &amp; Schedule</button>
+          </div>
+        </div>
+      )}
 
       <div className="cal">
         {mode !== "day" && <div className="calhead">{DOW.map((d) => <div key={d}>{d}</div>)}</div>}
