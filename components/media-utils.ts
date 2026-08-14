@@ -167,17 +167,19 @@ export function padForInstagram(file: File): Promise<Blob | null> {
         URL.revokeObjectURL(url);
         return resolve(null); // already valid — send the original
       }
-      // Nearest allowed ratio; expand the OTHER dimension (never crop).
+      // Nearest allowed ratio; expand the OTHER dimension (never crop). Use a
+      // tiny safety margin + ceil so rounding can never land just outside the
+      // allowed range (which would make Instagram crop it again).
       let cw: number;
       let ch: number;
       if (ratio < IG_MIN_RATIO) {
-        // too tall -> widen (pad left/right)
+        // too tall -> widen (pad left/right); target slightly inside 4:5
         ch = h;
-        cw = Math.round(IG_MIN_RATIO * h);
+        cw = Math.ceil((IG_MIN_RATIO + 0.01) * h);
       } else {
-        // too wide -> heighten (pad top/bottom)
+        // too wide -> heighten (pad top/bottom); target slightly inside 1.91:1
         cw = w;
-        ch = Math.round(w / IG_MAX_RATIO);
+        ch = Math.ceil(w / (IG_MAX_RATIO - 0.02));
       }
       const canvas = document.createElement("canvas");
       canvas.width = cw;
