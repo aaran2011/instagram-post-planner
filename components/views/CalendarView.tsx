@@ -15,7 +15,7 @@ function statusBadge(status: Post["status"]) {
   if (status === "failed") return { color: "var(--danger)", label: "Failed" };
   if (status === "publishing") return { color: "var(--warn)", label: "Posting…" };
   if (status === "scheduled") return { color: "var(--accent)", label: "Scheduled" };
-  if (status === "draft") return { color: "var(--text-3)", label: "Draft — not scheduled" };
+  if (status === "draft") return { color: "var(--warn)", label: "Draft — not scheduled" };
   return null;
 }
 
@@ -104,11 +104,11 @@ export default function CalendarView() {
               onDragEnd={() => { setDragId(null); setOverKey(null); }}
               onClick={() => openPost(p.id)}
               title={`${when.time}${sb ? " · " + sb.label : ""} · ${media?.originalName || ""}`}
-              style={sb ? { borderColor: sb.color } : undefined}
+              style={sb ? { borderLeft: `4px solid ${sb.color}` } : undefined}
             >
               {media && <img src={media.thumbUrl} alt="" />}
               <span className="cptext">{when.time}</span>
-              {sb && <span style={{ width: 7, height: 7, borderRadius: "50%", background: sb.color, flex: "none", marginLeft: "auto", marginRight: 2 }} title={sb.label} />}
+              {sb && <span style={{ width: 10, height: 10, borderRadius: "50%", background: sb.color, flex: "none", marginLeft: "auto", marginRight: 2, boxShadow: "0 0 0 2px var(--surface)" }} title={sb.label} />}
             </div>
           );
         })}
