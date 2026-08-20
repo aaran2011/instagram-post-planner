@@ -1,0 +1,21 @@
+name: Instagram scheduler
+
+# Pings the app's scheduler so any post whose time has arrived gets published
+# automatically — no need to have the site open. GitHub runs this ~every 5 min.
+# (GitHub's scheduler is best-effort, so posts may go out a few minutes after
+# their exact time. For to-the-minute precision, also add a cron-job.org job.)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes (GitHub's minimum interval)
+  workflow_dispatch: {} # lets you run it manually from the Actions tab
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger due posts
+        run: |
+          curl -sS -m 60 -X POST \
+            "https://instagram-post-planner.vercel.app/api/scheduler/tick?key=9983cc89fdf794a6442432a1" \
+            -w "\nHTTP %{http_code}\n" || true
