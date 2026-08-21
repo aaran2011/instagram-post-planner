@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getSession } from "@/lib/session";
 import { json, unauthorized } from "@/lib/api";
 import { processDue } from "@/lib/publisher";
+import { setLastTick } from "@/lib/kvstore";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ async function run(req: NextRequest) {
   if (!authed) return unauthorized();
 
   const outcomes = await processDue();
+  await setLastTick(new Date().toISOString()).catch(() => {});
   return json({ ran: true, processed: outcomes.length, outcomes });
 }
 

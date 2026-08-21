@@ -45,6 +45,28 @@ export async function loadRaw(): Promise<Partial<Database> | null> {
   }
 }
 
+// Lightweight heartbeat so we can confirm the external scheduler is pinging us.
+const TICK_KEY = "igplanner:lasttick";
+export async function setLastTick(iso: string): Promise<void> {
+  if (usingRedis()) {
+    await client().set(TICK_KEY, iso);
+    return;
+  }
+  try {
+    await fs2.writeFile(DB_FILE + ".tick", iso);
+  } catch {}
+}
+export async function getLastTick(): Promise<string | null> {
+  if (usingRedis()) {
+    return (await client().get<string>(TICK_KEY)) ?? null;
+  }
+  try {
+    return fs.readFileSync(DB_FILE + ".tick", "utf8");
+  } catch {
+    return null;
+  }
+}
+
 export async function saveRaw(db: Database): Promise<void> {
   if (usingRedis()) {
     await client().set(DB_KEY, db);

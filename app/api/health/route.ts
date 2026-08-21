@@ -1,5 +1,5 @@
 import { json } from "@/lib/api";
-import { usingRedis } from "@/lib/kvstore";
+import { usingRedis, getLastTick } from "@/lib/kvstore";
 import { usingBlob } from "@/lib/blobstore";
 import { readDb } from "@/lib/db";
 import { config } from "@/lib/config";
@@ -24,7 +24,15 @@ export async function GET() {
   } catch (e: any) {
     dbRead = String(e?.message || e).slice(0, 300);
   }
+  const lastTick = await getLastTick().catch(() => null);
+  const now = Date.now();
+  const lastTickSecondsAgo = lastTick
+    ? Math.round((now - Date.parse(lastTick)) / 1000)
+    : null;
   return json({
+    now: new Date(now).toISOString(),
+    lastTick,
+    lastTickSecondsAgo,
     usingRedis: usingRedis(),
     usingBlob: usingBlob(),
     hasUpstashUrl: Boolean(process.env.UPSTASH_REDIS_REST_URL),
