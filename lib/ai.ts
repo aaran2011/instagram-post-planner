@@ -142,7 +142,10 @@ export async function generatePlan(
     music: p.music,
     scheduledAt: (slots[i] ?? new Date()).toISOString(),
     timezone: settings.timezone,
-    status: "draft",
+    // Scheduled by default so the auto-publisher posts each at its set time
+    // with no extra click. The caption/time can still be edited, and any post
+    // can be removed, before it fires. (Was "draft", which the cron skipped.)
+    status: "scheduled",
     igMediaId: null,
     error: null,
     publishedAt: null,
