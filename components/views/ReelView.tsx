@@ -8,8 +8,12 @@ import {
 } from "../reel-engine";
 import {
   IconFilm, IconWand, IconPlay, IconPause, IconTrash, IconArrowUp, IconArrowDown,
-  IconDownload, IconCalendar, IconUpload, IconClose, IconCheck, IconSparkle, IconHeart, IconComment,
+  IconDownload, IconCalendar, IconUpload, IconClose, IconCheck, IconSparkle, IconHeart, IconComment, IconMusic,
 } from "../icons";
+import { muxAudioIntoVideo, isAudioFile } from "../audio-mux";
+import { uploadFile } from "../uploader";
+
+interface MusicTrack { file: File; url: string }
 
 const TRANSITIONS: Transition[] = ["cut", "dissolve", "slide", "whip"];
 
@@ -191,6 +195,21 @@ function StoryboardEditor({ sb, setSb, onRestart }: {
   const { state, toast } = useApp();
   const [instruction, setInstruction] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [music, setMusic] = useState<MusicTrack | null>(null);
+  const musicRef = useRef<HTMLInputElement>(null);
+
+  function attachMusic(list: FileList | null) {
+    const f = list?.[0];
+    if (!f) return;
+    if (!isAudioFile(f)) { toast("Choose an audio file (mp3, m4a, wav…)", "err"); return; }
+    if (music) URL.revokeObjectURL(music.url);
+    setMusic({ file: f, url: URL.createObjectURL(f) });
+    toast("Music added — you'll hear it in the preview", "ok");
+  }
+  function removeMusic() {
+    if (music) URL.revokeObjectURL(music.url);
+    setMusic(null);
+  }
 
   function update(clips: Clip[]) { setSb({ ...sb, clips }); }
   function move(i: number, dir: -1 | 1) {
@@ -291,12 +310,32 @@ function StoryboardEditor({ sb, setSb, onRestart }: {
             <button className="btn subtle sm" onClick={runInstruction}><IconWand size={14} /> Apply</button>
           </div>
         </div>
+
+        <div className="card" style={{ padding: 16 }}>
+          <div className="flex gap8"><IconMusic size={16} /><b className="tiny grow">Music</b></div>
+          {music ? (
+            <div className="flex gap8 mt8" style={{ alignItems: "center" }}>
+              <div className="grow tiny" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>🎵 {music.file.name}</div>
+              <button className="btn ghost sm" style={{ color: "var(--danger)" }} onClick={removeMusic}><IconTrash size={14} /></button>
+            </div>
+          ) : (
+            <p className="tiny muted mt8">Add a music file you own to hear it over the preview and bake it into the posted reel.</p>
+          )}
+          <button className="btn subtle sm mt8" onClick={() => musicRef.current?.click()}>
+            <IconMusic size={14} /> {music ? "Replace music" : "Add music"}
+          </button>
+          <input ref={musicRef} type="file" accept="audio/*,.mp3,.m4a,.aac,.wav" hidden
+            onChange={(e) => { attachMusic(e.target.files); e.currentTarget.value = ""; }} />
+          <p className="tiny muted mt8" style={{ lineHeight: 1.5 }}>
+            Instagram's trending sounds can't be added by any API — add those manually in the app when the reel posts (tap <b>Audio</b> while sharing). Music you upload here gets baked into the video automatically.
+          </p>
+        </div>
       </div>
 
       {/* Right: preview + actions */}
       <div className="stack gap16">
         <div className="card" style={{ padding: 16 }}>
-          <Preview sb={sb} />
+          <Preview sb={sb} music={music} />
         </div>
         <div className="card" style={{ padding: 16 }}>
           <div className="tiny muted" style={{ marginBottom: 8 }}>
@@ -311,19 +350,24 @@ function StoryboardEditor({ sb, setSb, onRestart }: {
         </div>
       </div>
 
-      {scheduleOpen && <ScheduleReelModal sb={sb} onClose={() => setScheduleOpen(false)} />}
+      {scheduleOpen && <ScheduleReelModal sb={sb} music={music} onClose={() => setScheduleOpen(false)} />}
     </div>
   );
 }
 
 // A real 9:16 sequenced preview player using the user's own media.
-function Preview({ sb }: { sb: Storyboard }) {
+function Preview({ sb, music }: { sb: Storyboard; music: MusicTrack | null }) {
   const [playing, setPlaying] = useState(false);
   const [idx, setIdx] = useState(0);
+  // When music is present, default to hearing the music (clips muted). Otherwise
+  // let the clips' own audio play. Toggleable.
+  const [clipSound, setClipSound] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const timer = useRef<any>(null);
 
   const clip = sb.clips[idx];
+  const clipsMuted = music ? !clipSound : false;
 
   useEffect(() => {
     if (!playing || !sb.clips.length) return;
@@ -333,6 +377,7 @@ function Preview({ sb }: { sb: Storyboard }) {
     if (c.type === "video" && videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.playbackRate = c.speed || 1;
+      videoRef.current.muted = clipsMuted;
       videoRef.current.play().catch(() => {});
     }
     timer.current = setTimeout(() => {
@@ -340,18 +385,27 @@ function Preview({ sb }: { sb: Storyboard }) {
       else { setPlaying(false); setIdx(0); }
     }, ms);
     return () => clearTimeout(timer.current);
-  }, [playing, idx, sb.clips]);
+  }, [playing, idx, sb.clips, clipsMuted]);
+
+  // Start/stop the music track alongside playback.
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (playing && music) { a.currentTime = 0; a.play().catch(() => {}); }
+    else { a.pause(); }
+  }, [playing, music]);
 
   function toggle() {
-    if (playing) { setPlaying(false); clearTimeout(timer.current); }
+    if (playing) { setPlaying(false); clearTimeout(timer.current); audioRef.current?.pause(); }
     else { setIdx(0); setPlaying(true); }
   }
 
   return (
     <div>
+      {music && <audio ref={audioRef} src={music.url} loop preload="auto" />}
       <div style={{ position: "relative", aspectRatio: "9/16", borderRadius: 12, overflow: "hidden", background: "#000" }}>
         {clip && (clip.type === "video"
-          ? <video ref={videoRef} src={clip.url} muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ? <video ref={videoRef} src={clip.url} muted={clipsMuted} playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           : <img src={clip.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />)}
         {clip?.text && (
           <div style={{ position: "absolute", left: 0, right: 0, bottom: "16%", textAlign: "center", color: "#fff", fontWeight: 800, fontSize: 18, textShadow: "0 2px 8px rgba(0,0,0,.6)", padding: "0 16px" }}>
@@ -368,12 +422,21 @@ function Preview({ sb }: { sb: Storyboard }) {
           {playing ? <IconPause size={22} /> : <IconPlay size={22} />}
         </button>
       </div>
-      <div className="tiny muted mt8" style={{ textAlign: "center" }}>Sequenced preview · {totalDuration(sb)}s · {sb.aspect}</div>
+      <div className="tiny muted mt8" style={{ textAlign: "center" }}>
+        Sequenced preview · {totalDuration(sb)}s · {sb.aspect}
+        {music && <> · 🎵 {music.file.name.slice(0, 18)}</>}
+      </div>
+      {music && (
+        <div className="flex gap8 mt8" style={{ justifyContent: "center" }}>
+          <button className={`btn sm ${clipSound ? "subtle" : "primary"}`} onClick={() => setClipSound(false)}><IconMusic size={13} /> Music</button>
+          <button className={`btn sm ${clipSound ? "primary" : "subtle"}`} onClick={() => setClipSound(true)}>Clip sound</button>
+        </div>
+      )}
     </div>
   );
 }
 
-function ScheduleReelModal({ sb, onClose }: { sb: Storyboard; onClose: () => void }) {
+function ScheduleReelModal({ sb, music, onClose }: { sb: Storyboard; music: MusicTrack | null; onClose: () => void }) {
   const { state, setState, toast, go } = useApp();
   const videos = state.media.filter((m) => m.type === "video");
   const firstVid = sb.clips.find((c) => c.type === "video")?.mediaId;
@@ -381,25 +444,48 @@ function ScheduleReelModal({ sb, onClose }: { sb: Storyboard; onClose: () => voi
   const [caption, setCaption] = useState("");
   const [when, setWhen] = useState("");
   const [busy, setBusy] = useState(false);
+  const [bakeMusic, setBakeMusic] = useState<boolean>(Boolean(music));
+  const [status, setStatus] = useState("");
 
   async function schedule() {
     if (!mediaId) { toast("Pick the finished vertical video to publish as the reel", "err"); return; }
     if (!when) { toast("Choose a date & time", "err"); return; }
     setBusy(true);
     try {
+      let finalMediaId = mediaId;
+
+      // Bake the user's own music into the chosen video (video copied — no
+      // quality loss) and schedule THAT muxed video instead.
+      if (music && bakeMusic) {
+        setStatus("Loading audio engine…");
+        const bytesRes = await fetch(`/api/media/bytes/${mediaId}`);
+        if (!bytesRes.ok) throw new Error("Could not read the selected video");
+        const videoBlob = await bytesRes.blob();
+        const muxed = await muxAudioIntoVideo(videoBlob, music.file, {
+          loopAudio: true,
+          onStatus: setStatus,
+          onProgress: (p) => setStatus(`Merging music… ${p}%`),
+        });
+        setStatus("Uploading the reel with music…");
+        const media = await uploadFile(muxed, Boolean(state.config.blobDirect));
+        setState((prev) => ({ ...prev, media: [media, ...prev.media] }));
+        finalMediaId = media.id;
+      }
+
+      setStatus("Scheduling…");
       const res = await api.post("/api/posts/create", {
-        mediaIds: [mediaId],
+        mediaIds: [finalMediaId],
         caption,
         format: "reel",
         scheduledAt: new Date(when).toISOString(),
       });
       setState(res);
-      toast("Reel added to your calendar — it will auto-post at that time", "ok");
+      toast(music && bakeMusic ? "Reel with music added to your calendar" : "Reel added to your calendar — it will auto-post at that time", "ok");
       onClose();
       go("calendar");
     } catch (e: any) {
       toast(e.message || "Could not schedule", "err");
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setStatus(""); }
   }
 
   return (
@@ -421,6 +507,24 @@ function ScheduleReelModal({ sb, onClose }: { sb: Storyboard; onClose: () => voi
               <div className="tiny muted">No videos in your library yet. Upload your finished vertical reel first.</div>
             )}
           </label>
+          {/* Music */}
+          <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: 12 }}>
+            <div className="flex gap8" style={{ alignItems: "center" }}>
+              <IconMusic size={15} />
+              <b className="tiny grow">Music</b>
+            </div>
+            {music ? (
+              <label className="flex gap8 mt8" style={{ alignItems: "flex-start", cursor: "pointer" }}>
+                <input type="checkbox" checked={bakeMusic} onChange={(e) => setBakeMusic(e.target.checked)} style={{ marginTop: 3 }} />
+                <span className="tiny">Bake <b>{music.file.name}</b> into the video before posting (video quality untouched — only audio is added). Takes a moment the first time while the audio engine loads.</span>
+              </label>
+            ) : (
+              <p className="tiny muted mt8">No music attached. Add a track in the storyboard to bake it in here.</p>
+            )}
+            <p className="tiny muted mt8" style={{ lineHeight: 1.5 }}>
+              Prefer an Instagram <b>trending sound</b>? That can only be added by hand: when the reel posts, open it in Instagram and tap <b>Edit → Audio</b> to add a catalog track. No API can attach licensed music.
+            </p>
+          </div>
           <label className="field">
             <span>Caption</span>
             <textarea className="input" rows={3} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write your caption…" />
@@ -429,8 +533,8 @@ function ScheduleReelModal({ sb, onClose }: { sb: Storyboard; onClose: () => voi
             <span>Date &amp; time</span>
             <input className="input" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
           </label>
-          <div className="flex">
-            <div className="grow" />
+          <div className="flex" style={{ alignItems: "center" }}>
+            <div className="grow tiny muted">{status}</div>
             <button className="btn primary" onClick={schedule} disabled={busy || !videos.length}>
               {busy ? <Spinner /> : <IconCalendar size={16} />} Add to Calendar
             </button>
