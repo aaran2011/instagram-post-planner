@@ -3,6 +3,7 @@ import { readDb } from "@/lib/db";
 import { fetchReelHistory } from "@/lib/instagram";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 // Read-only analysis of the connected account's reels. Never re-connects.
 export async function GET() {

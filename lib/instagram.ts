@@ -318,15 +318,28 @@ export async function fetchReelHistory(accessToken: string, igUserId: string): P
     (m) => m.media_product_type === "REELS" || m.media_product_type === "CLIPS" || m.media_type === "VIDEO",
   );
 
-  let metricsLevel: "insights" | "basic" = "basic";
-  const reels: ReelPerf[] = [];
-  for (const m of reelsRaw) {
+  // Build with basic metrics first (no extra API calls), then rank.
+  const reels: ReelPerf[] = reelsRaw.map((m) => {
     const likes = Number(m.like_count ?? 0);
     const comments = Number(m.comments_count ?? 0);
-    let views: number | null = null, reach: number | null = null, saved: number | null = null, shares: number | null = null;
-    // Best-effort insights (needs instagram_business_manage_insights).
+    return {
+      id: String(m.id),
+      caption: String(m.caption || ""),
+      permalink: m.permalink || null,
+      thumbnailUrl: m.thumbnail_url || null,
+      timestamp: m.timestamp || null,
+      likes, comments, views: null, reach: null, saved: null, shares: null,
+      engagement: likes + comments * 2,
+    };
+  });
+  reels.sort((a, b) => b.engagement - a.engagement);
+
+  // Best-effort insights (needs instagram_business_manage_insights) on only the
+  // TOP performers — bounds external calls so we never hit the function timeout.
+  let metricsLevel: "insights" | "basic" = "basic";
+  for (const r of reels.slice(0, 8)) {
     try {
-      const ins = await graphGet(`/${m.id}/insights`, {
+      const ins = await graphGet(`/${r.id}/insights`, {
         access_token: accessToken,
         metric: "reach,saved,shares,views",
       });
@@ -337,23 +350,16 @@ export async function fetchReelHistory(accessToken: string, igUserId: string): P
       }
       if (Object.keys(vals).length) {
         metricsLevel = "insights";
-        views = vals.views ?? null; reach = vals.reach ?? null;
-        saved = vals.saved ?? null; shares = vals.shares ?? null;
+        r.views = vals.views ?? null; r.reach = vals.reach ?? null;
+        r.saved = vals.saved ?? null; r.shares = vals.shares ?? null;
+        if (r.views != null) r.engagement = r.views;
       }
     } catch {
-      // no insights permission — keep basic metrics
+      // no insights permission — keep basic metrics and stop probing
+      break;
     }
-    reels.push({
-      id: String(m.id),
-      caption: String(m.caption || ""),
-      permalink: m.permalink || null,
-      thumbnailUrl: m.thumbnail_url || null,
-      timestamp: m.timestamp || null,
-      likes, comments, views, reach, saved, shares,
-      engagement: views != null ? views : likes + comments * 2,
-    });
   }
-  reels.sort((a, b) => b.engagement - a.engagement);
+  if (metricsLevel === "insights") reels.sort((a, b) => b.engagement - a.engagement);
   return { reels, metricsLevel, count: reels.length };
 }
 
