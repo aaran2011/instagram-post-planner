@@ -14,4 +14,9 @@ certificates
 # Sibling projects that live in this folder but aren't part of this app
 clothesplanner-app
 light-it
+fitness-app
+ready-app
 .claude/settings.local.json
+
+# TypeScript incremental build cache
+*.tsbuildinfo
