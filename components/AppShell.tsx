@@ -7,8 +7,11 @@ import { AppProvider, useApp, View } from "./ui";
 import {
   IconUpload, IconGrid, IconCalendar, IconRocket, IconBolt, IconSettings,
   IconInstagram, IconLogout, IconMenu, IconCheck, IconAlert, IconLink,
+  IconWand, IconFilm, Logo,
 } from "./icons";
 import UploadView from "./views/UploadView";
+import EditView from "./views/EditView";
+import ReelView from "./views/ReelView";
 import PlanView from "./views/PlanView";
 import CalendarView from "./views/CalendarView";
 import ReviewView from "./views/ReviewView";
@@ -92,6 +95,8 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
 
   const navItems: { key: View; label: string; icon: React.ReactNode; badge?: number }[] = [
     { key: "upload", label: "Upload", icon: <IconUpload size={19} />, badge: counts.media || undefined },
+    { key: "edit", label: "Edit Images", icon: <IconWand size={19} /> },
+    { key: "reel", label: "Reel Creator", icon: <IconFilm size={19} /> },
     { key: "plan", label: "Your Plan", icon: <IconGrid size={19} />, badge: counts.posts || undefined },
     { key: "calendar", label: "Calendar", icon: <IconCalendar size={19} /> },
     { key: "review", label: "Review", icon: <IconRocket size={19} /> },
@@ -105,7 +110,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
         {sidebarOpen && <div className="scrim" onClick={() => setSidebarOpen(false)} />}
         <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
           <div className="brand">
-            <div className="logo">◐</div>
+            <div className="logo" style={{ background: "transparent", display: "grid", placeItems: "center" }}><Logo size={30} /></div>
             <div className="name">Instagram Planner</div>
           </div>
           {navItems.map((n) => (
@@ -159,6 +164,8 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
 
           <div className="content">
             {view === "upload" && <UploadView onConnect={() => setConnectOpen(true)} />}
+            {view === "edit" && <EditView />}
+            {view === "reel" && <ReelView />}
             {view === "plan" && <PlanView />}
             {view === "calendar" && <CalendarView />}
             {view === "review" && <ReviewView onConnect={() => setConnectOpen(true)} />}

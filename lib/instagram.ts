@@ -279,6 +279,84 @@ export async function publishPost(
   return { igMediaId: published.id };
 }
 
+// ---- Reel performance (read-only analysis of the connected account) ----
+
+export interface ReelPerf {
+  id: string;
+  caption: string;
+  permalink: string | null;
+  thumbnailUrl: string | null;
+  timestamp: string | null;
+  likes: number;
+  comments: number;
+  views: number | null; // only when insights permission is granted
+  reach: number | null;
+  saved: number | null;
+  shares: number | null;
+  engagement: number; // ranking score (views if available, else likes+comments)
+}
+
+export interface ReelHistory {
+  reels: ReelPerf[];
+  metricsLevel: "insights" | "basic";
+  count: number;
+}
+
+// Pull the connected account's reels and rank them. Uses only basic media
+// fields (likes + comments) which the existing connection already permits;
+// tries per-media insights for views/reach/saves/shares but silently falls back
+// if that permission isn't present (so we never force a re-connect).
+export async function fetchReelHistory(accessToken: string, igUserId: string): Promise<ReelHistory> {
+  const media = await graphGet(`/${igUserId}/media`, {
+    access_token: accessToken,
+    fields:
+      "id,caption,media_type,media_product_type,permalink,thumbnail_url,timestamp,like_count,comments_count",
+    limit: "50",
+  });
+  const items: any[] = Array.isArray(media?.data) ? media.data : [];
+  const reelsRaw = items.filter(
+    (m) => m.media_product_type === "REELS" || m.media_product_type === "CLIPS" || m.media_type === "VIDEO",
+  );
+
+  let metricsLevel: "insights" | "basic" = "basic";
+  const reels: ReelPerf[] = [];
+  for (const m of reelsRaw) {
+    const likes = Number(m.like_count ?? 0);
+    const comments = Number(m.comments_count ?? 0);
+    let views: number | null = null, reach: number | null = null, saved: number | null = null, shares: number | null = null;
+    // Best-effort insights (needs instagram_business_manage_insights).
+    try {
+      const ins = await graphGet(`/${m.id}/insights`, {
+        access_token: accessToken,
+        metric: "reach,saved,shares,views",
+      });
+      const vals: Record<string, number> = {};
+      for (const row of ins?.data ?? []) {
+        const v = row?.values?.[0]?.value ?? row?.total_value?.value;
+        if (typeof v === "number") vals[row.name] = v;
+      }
+      if (Object.keys(vals).length) {
+        metricsLevel = "insights";
+        views = vals.views ?? null; reach = vals.reach ?? null;
+        saved = vals.saved ?? null; shares = vals.shares ?? null;
+      }
+    } catch {
+      // no insights permission — keep basic metrics
+    }
+    reels.push({
+      id: String(m.id),
+      caption: String(m.caption || ""),
+      permalink: m.permalink || null,
+      thumbnailUrl: m.thumbnail_url || null,
+      timestamp: m.timestamp || null,
+      likes, comments, views, reach, saved, shares,
+      engagement: views != null ? views : likes + comments * 2,
+    });
+  }
+  reels.sort((a, b) => b.engagement - a.engagement);
+  return { reels, metricsLevel, count: reels.length };
+}
+
 async function waitForContainer(containerId: string, accessToken: string) {
   for (let i = 0; i < 20; i++) {
     const status = await graphGet(`/${containerId}`, {

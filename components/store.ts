@@ -1,6 +1,8 @@
-import type { Post, Settings, InstagramAccount, MediaAnalysis } from "@/lib/types";
+import type {
+  Post, Settings, InstagramAccount, MediaAnalysis, EditStyle, EditAdjustments,
+} from "@/lib/types";
 
-export type { Post, Settings, InstagramAccount, MediaAnalysis };
+export type { Post, Settings, InstagramAccount, MediaAnalysis, EditStyle, EditAdjustments };
 
 export interface ClientMedia {
   id: string;
@@ -33,6 +35,7 @@ export interface ClientState {
   posts: Post[];
   settings: Settings;
   instagram: InstagramAccount;
+  editStyle: EditStyle | null;
   config: ConfigStatus;
   limitations: Record<string, string>;
 }

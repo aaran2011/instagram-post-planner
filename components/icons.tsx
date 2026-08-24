@@ -96,3 +96,42 @@ export const IconEye = (p: P) => (
 export const IconLink = (p: P) => (
   <S {...p}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></S>
 );
+export const IconWand = (p: P) => (
+  <S {...p}><path d="m15 4 5 5" /><path d="M20 4 4 20" /><path d="M9 6h.01M6 3h.01M18 15h.01M15 18h.01" /></S>
+);
+export const IconFilm = (p: P) => (
+  <S {...p}><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M7 4v16M17 4v16M3 9h4M17 9h4M3 15h4M17 15h4" /></S>
+);
+export const IconDownload = (p: P) => (
+  <S {...p}><path d="M12 4v12" /><path d="m7 11 5 5 5-5" /><path d="M4 20h16" /></S>
+);
+export const IconArrowUp = (p: P) => (<S {...p}><path d="M12 19V5M6 11l6-6 6 6" /></S>);
+export const IconArrowDown = (p: P) => (<S {...p}><path d="M12 5v14M6 13l6 6 6-6" /></S>);
+
+// ---- Brand logo ----
+// Original mark: a rounded "aperture" (photography) whose blades double as a
+// scheduling ring, with a calendar notch at the top. Matte gradient, no glow.
+export const Logo = ({ size = 30 }: { size?: number }) => {
+  const id = "planlogo";
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={`${id}-g`} x1="6" y1="6" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#7c8bff" />
+          <stop offset="1" stopColor="#5468f0" />
+        </linearGradient>
+      </defs>
+      <rect x="3" y="3" width="42" height="42" rx="13" fill={`url(#${id}-g)`} />
+      {/* aperture blades */}
+      <g stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.96">
+        <circle cx="24" cy="24" r="11" />
+        <path d="M24 13 L30 20.5 L18 20.5 Z" fill="#fff" stroke="none" opacity="0.14" />
+        <path d="M24 24 L24 13" />
+        <path d="M24 24 L33.5 29.5" />
+        <path d="M24 24 L14.5 29.5" />
+      </g>
+      {/* scheduling dot */}
+      <circle cx="24" cy="24" r="2.6" fill="#fff" />
+    </svg>
+  );
+};

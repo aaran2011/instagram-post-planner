@@ -97,11 +97,37 @@ export interface Settings {
   demoMode: boolean; // when true, publishing is simulated
 }
 
+// A learned photographic editing style. All values are normalized -1..1 and map
+// directly to non-destructive photographic adjustments (never generative). They
+// are the SAME knobs the manual sliders expose, so a learned look can be tweaked.
+export interface EditAdjustments {
+  exposure: number; // overall brightness
+  contrast: number; // S-curve strength
+  temperature: number; // cool (-) <-> warm (+)
+  tint: number; // green (-) <-> magenta (+)
+  saturation: number; // global saturation
+  vibrance: number; // saturation weighted toward muted tones
+  highlights: number; // recover (-) / lift (+) bright tones
+  shadows: number; // deepen (-) / lift (+) dark tones
+  whites: number; // white point
+  blacks: number; // black point
+}
+
+export interface EditStyle {
+  adjustments: EditAdjustments;
+  pairs: number; // how many before/after pairs it was learned from
+  trainedAt: string; // ISO
+  notes: string; // human-readable summary of the look
+}
+
 export interface Database {
   media: MediaItem[];
   posts: Post[];
   settings: Settings;
   instagram: InstagramAccount;
+  // The user's personal editing style, learned from before/after pairs. Null
+  // until trained. Applied automatically to future edits.
+  editStyle?: EditStyle | null;
   // Server-only secret material. Never serialized to any client response.
   secrets: {
     instagramAccessToken: string | null;

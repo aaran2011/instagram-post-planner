@@ -3,7 +3,7 @@ import React, { createContext, useContext } from "react";
 import type { ClientState } from "./store";
 import { IconClose } from "./icons";
 
-export type View = "upload" | "plan" | "calendar" | "review" | "automation" | "settings";
+export type View = "upload" | "edit" | "reel" | "plan" | "calendar" | "review" | "automation" | "settings";
 
 export interface AppCtx {
   state: ClientState;

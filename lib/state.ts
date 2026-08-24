@@ -36,6 +36,7 @@ export async function buildClientState() {
     posts: db.posts.slice().sort((a, b) => a.order - b.order),
     settings: db.settings,
     instagram: db.instagram,
+    editStyle: db.editStyle ?? null,
     config: configStatus(),
     limitations: IG_LIMITATIONS,
   };

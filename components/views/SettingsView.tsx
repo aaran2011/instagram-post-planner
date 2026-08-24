@@ -3,10 +3,10 @@ import React, { useState } from "react";
 import { useApp, Spinner } from "../ui";
 import { api } from "../store";
 import { tzListWith } from "../tz";
-import { IconInstagram, IconCheck, IconAlert, IconPlus, IconClose, IconSparkle } from "../icons";
+import { IconInstagram, IconCheck, IconAlert, IconPlus, IconClose, IconSparkle, IconWand, IconTrash } from "../icons";
 
 export default function SettingsView({ onConnect }: { onConnect: () => void }) {
-  const { state, setState, toast } = useApp();
+  const { state, setState, toast, go } = useApp();
   const s = state.settings;
   const [timezone, setTimezone] = useState(s.timezone);
   const [times, setTimes] = useState<string[]>(s.defaultTimes);
@@ -40,6 +40,17 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
       toast(next ? "Demo mode ON — publishing is simulated" : "Demo mode OFF — live publishing enabled", "ok");
     } catch (e: any) {
       toast(e.message, "err");
+    }
+  }
+
+  async function resetStyle() {
+    if (!confirm("Reset your learned editing style? You can retrain it any time.")) return;
+    try {
+      const res = await fetch("/api/edit-style", { method: "DELETE" }).then((r) => r.json());
+      setState((prev) => ({ ...prev, editStyle: res.editStyle ?? null }));
+      toast("Editing style reset", "ok");
+    } catch (e: any) {
+      toast(e.message || "Could not reset", "err");
     }
   }
 
@@ -153,6 +164,28 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
           <div className="grow tiny muted">Allow emojis in captions</div>
           <Toggle on={emojis} onChange={setEmojis} />
         </div>
+      </div>
+
+      {/* Editing style */}
+      <div className="card" style={{ padding: 22 }}>
+        <div className="flex gap8 mb16"><IconWand size={18} /><b>Editing style</b></div>
+        {state.editStyle ? (
+          <div className="flex gap12 wrap">
+            <div className="grow">
+              <div style={{ fontWeight: 650 }}>Trained on {state.editStyle.pairs} before/after pairs</div>
+              <div className="tiny muted">{state.editStyle.notes} · learned {new Date(state.editStyle.trainedAt).toLocaleDateString()}</div>
+              <div className="tiny muted mt8">Applied automatically to new photos in <b>Edit Images</b>.</div>
+            </div>
+            <span className="pill ok"><span className="dot" /> Active</span>
+            <button className="btn subtle sm" onClick={() => go("edit")}><IconWand size={14} /> Retrain</button>
+            <button className="btn danger sm" onClick={resetStyle}><IconTrash size={14} /> Reset style</button>
+          </div>
+        ) : (
+          <div className="flex gap12 wrap">
+            <div className="grow muted tiny">No style trained yet. Teach the app your look from 5 before/after pairs.</div>
+            <button className="btn primary sm" onClick={() => go("edit")}><IconWand size={15} /> Train editing style</button>
+          </div>
+        )}
       </div>
 
       <div className="flex">

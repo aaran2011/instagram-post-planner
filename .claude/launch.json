@@ -4,8 +4,33 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 4321
+    },
+    {
+      "name": "forma",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "fitness-app",
+        "run",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "ready",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "ready-app",
+        "run",
+        "dev"
+      ],
+      "port": 4400
     }
   ]
 }
