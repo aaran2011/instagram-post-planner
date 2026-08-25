@@ -10,7 +10,7 @@ import GenerateOverlay from "../GenerateOverlay";
 import PostComposer from "../PostComposer";
 import {
   IconUpload, IconPlus, IconTrash, IconVideo, IconCheck, IconSparkle,
-  IconAlert, IconGrid,
+  IconAlert, IconGrid, IconLink, IconClose,
 } from "../icons";
 
 interface QItem {
@@ -44,6 +44,9 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
   const [filter, setFilter] = useState<"all" | "photo" | "video">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
+  const [driveUrl, setDriveUrl] = useState("");
+  const [driveBusy, setDriveBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const media = state.media;
@@ -265,6 +268,24 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
     }
   }
 
+  async function importDrive() {
+    if (!driveUrl.trim()) { toast("Paste a Google Drive folder link", "err"); return; }
+    setDriveBusy(true);
+    try {
+      const res = await api.post("/api/import/drive", { folderUrl: driveUrl.trim() });
+      setState(res);
+      toast(
+        `Imported ${res.imported} file${res.imported === 1 ? "" : "s"} from Drive` +
+          (res.skipped ? ` · skipped ${res.skipped}` : "") + (res.note ? ` · ${res.note}` : ""),
+        res.imported ? "ok" : "err",
+      );
+      setDriveOpen(false); setDriveUrl("");
+    } catch (e: any) {
+      const data = e?.data;
+      toast(data?.needsSetup ? (data.setup || data.error) : (e.message || "Import failed"), "err");
+    } finally { setDriveBusy(false); }
+  }
+
   async function generate() {
     if (!media.length) return;
     const ids = selected.size ? Array.from(selected) : media.map((m) => m.id);
@@ -312,6 +333,9 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
         <div className="flex gap12" style={{ justifyContent: "center" }}>
           <button className="btn primary" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>
             <IconPlus size={17} /> Browse Files
+          </button>
+          <button className="btn subtle" onClick={(e) => { e.stopPropagation(); setDriveOpen(true); }}>
+            <IconLink size={16} /> Link
           </button>
           <span className="tiny muted">or drag &amp; drop • JPG, PNG, WEBP, MP4, MOV</span>
         </div>
@@ -422,6 +446,32 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
                 <div className="fname">{m.originalName}</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {driveOpen && (
+        <div className="overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setDriveOpen(false); }}>
+          <div className="modal" style={{ maxWidth: 470, width: "94%" }}>
+            <div className="flex" style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
+              <b className="grow">Import from Google Drive</b>
+              <button className="btn ghost sm" onClick={() => setDriveOpen(false)}><IconClose size={18} /></button>
+            </div>
+            <div style={{ padding: 18 }} className="stack gap12">
+              <p className="tiny muted" style={{ lineHeight: 1.5 }}>
+                Paste a Google Drive <b>folder</b> link. Share the folder as <b>“Anyone with the link.”</b>
+                The app finds the images/videos inside and adds them here — no manual downloading.
+              </p>
+              <input className="input" placeholder="https://drive.google.com/drive/folders/…"
+                value={driveUrl} onChange={(e) => setDriveUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") importDrive(); }} />
+              <div className="flex">
+                <div className="grow" />
+                <button className="btn primary" onClick={importDrive} disabled={driveBusy}>
+                  {driveBusy ? <span className="spin" /> : <IconLink size={16} />} Import
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
