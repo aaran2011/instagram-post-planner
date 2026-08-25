@@ -25,6 +25,7 @@ const SLIDERS: { key: keyof EditAdjustments; label: string }[] = [
 ];
 
 const PREVIEW_MAX = 1400; // px for on-screen previews; full-res used on save
+const PAIR_COUNT = 3; // number of before/after pairs used to learn the style
 
 export default function EditView() {
   const { state, setState, toast, go } = useApp();
@@ -78,20 +79,20 @@ function TrainPanel({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ adj: EditAdjustments; notes: string } | null>(null);
 
-  const ready = before.length === 5 && after.length === 5;
+  const ready = before.length === PAIR_COUNT && after.length === PAIR_COUNT;
 
   async function learn() {
-    if (!ready) { toast("Add exactly 5 before and 5 matching edited photos", "err"); return; }
+    if (!ready) { toast(`Add exactly ${PAIR_COUNT} before and ${PAIR_COUNT} matching edited photos`, "err"); return; }
     setBusy(true);
     try {
       const perPair: EditAdjustments[] = [];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < PAIR_COUNT; i++) {
         const [bImg, aImg] = await Promise.all([loadImage(before[i]), loadImage(after[i])]);
         perPair.push(deriveAdjustments(analyzeStats(bImg), analyzeStats(aImg)));
       }
       const adj = averageAdjustments(perPair);
       const notes = describeStyle(adj);
-      const res = await api.post("/api/edit-style", { adjustments: adj, pairs: 5, notes });
+      const res = await api.post("/api/edit-style", { adjustments: adj, pairs: PAIR_COUNT, notes });
       setState((prev) => ({ ...prev, editStyle: res.editStyle }));
       setResult({ adj, notes });
       toast("Style learned and saved", "ok");
@@ -107,9 +108,9 @@ function TrainPanel({ onDone }: { onDone: () => void }) {
       <div className="card" style={{ padding: 20 }}>
         <b>Teach the app your look</b>
         <p className="tiny muted mt8">
-          Upload <b>5 unedited</b> photos and the <b>5 matching edited</b> versions in the same order.
-          The app measures the real differences (exposure, contrast, colour, tone) and saves them as your
-          reusable style. JPG / JPEG / PNG.
+          Add <b>{PAIR_COUNT} unedited</b> photos and the <b>{PAIR_COUNT} matching edited</b> versions in the same order —
+          drag &amp; drop or click to upload. The app measures the real differences (exposure, contrast, colour, tone)
+          and saves them as your reusable style. JPG / JPEG / PNG.
         </p>
         <div className="grid2 mt16" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <PairColumn title="Before (unedited)" files={before} setFiles={setBefore} accent="var(--text-2)" />
@@ -119,7 +120,7 @@ function TrainPanel({ onDone }: { onDone: () => void }) {
           <div className="banner warn mt16"><div>Add the same number of before and after photos, matched in order.</div></div>
         )}
         <div className="flex mt16">
-          <div className="grow tiny muted">{before.length}/5 before · {after.length}/5 after</div>
+          <div className="grow tiny muted">{before.length}/{PAIR_COUNT} before · {after.length}/{PAIR_COUNT} after</div>
           <button className="btn primary" onClick={learn} disabled={!ready || busy}>
             {busy ? <Spinner /> : <IconSparkle size={16} />} Learn my style
           </button>
@@ -152,23 +153,35 @@ function PairColumn({ title, files, setFiles, accent }: {
   title: string; files: File[]; setFiles: (f: File[]) => void; accent: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  function add(list: FileList | null) {
+  const [dragging, setDragging] = useState(false);
+  function add(list: FileList | File[] | null) {
     if (!list) return;
     const imgs = Array.from(list).filter((f) => isAccepted(f) && f.type.startsWith("image/"));
-    setFiles([...files, ...imgs].slice(0, 5));
+    setFiles([...files, ...imgs].slice(0, PAIR_COUNT));
   }
   return (
     <div>
       <div className="tiny" style={{ fontWeight: 700, color: accent, marginBottom: 8 }}>{title}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
-        {Array.from({ length: 5 }).map((_, i) => {
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); add(e.dataTransfer.files); }}
+        onClick={() => { if (files.length < PAIR_COUNT) inputRef.current?.click(); }}
+        style={{
+          display: "grid", gridTemplateColumns: `repeat(${PAIR_COUNT},1fr)`, gap: 6,
+          padding: 6, borderRadius: 10, cursor: files.length < PAIR_COUNT ? "pointer" : "default",
+          border: dragging ? "2px dashed var(--accent)" : "2px dashed transparent",
+          background: dragging ? "var(--surface-2)" : "transparent", transition: "border-color .15s, background .15s",
+        }}
+      >
+        {Array.from({ length: PAIR_COUNT }).map((_, i) => {
           const f = files[i];
           return (
             <div key={i} style={{ aspectRatio: "1", borderRadius: 8, overflow: "hidden", background: "var(--surface-2)", border: "1px dashed var(--border)", position: "relative", display: "grid", placeItems: "center" }}>
               {f ? (
                 <>
                   <img src={URL.createObjectURL(f)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  <button onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                  <button onClick={(e) => { e.stopPropagation(); setFiles(files.filter((_, j) => j !== i)); }}
                     style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,.6)", color: "#fff", border: "none", borderRadius: 6, width: 20, height: 20, cursor: "pointer", display: "grid", placeItems: "center" }}>
                     <IconClose size={12} />
                   </button>
@@ -178,8 +191,8 @@ function PairColumn({ title, files, setFiles, accent }: {
           );
         })}
       </div>
-      <button className="btn subtle sm mt8" onClick={() => inputRef.current?.click()} disabled={files.length >= 5}>
-        <IconUpload size={14} /> Add
+      <button className="btn subtle sm mt8" onClick={() => inputRef.current?.click()} disabled={files.length >= PAIR_COUNT}>
+        <IconUpload size={14} /> Add or drop
       </button>
       <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { add(e.target.files); e.currentTarget.value = ""; }} />
     </div>
