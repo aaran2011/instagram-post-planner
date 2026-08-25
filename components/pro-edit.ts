@@ -26,7 +26,7 @@ export interface ProParams {
   // auto white balance channel gains (~1.0)
   wbR: number; wbG: number; wbB: number;
   // tone
-  exposure: number; contrast: number;
+  exposure: number; contrast: number; pivot: number; // pivot = luminance the contrast rotates around
   highlights: number; shadows: number; whites: number; blacks: number;
   // colour
   temperature: number; tint: number; saturation: number; vibrance: number;
@@ -36,7 +36,7 @@ export interface ProParams {
 
 export const NEUTRAL_PRO: ProParams = {
   blackIn: 0, whiteIn: 1, wbR: 1, wbG: 1, wbB: 1,
-  exposure: 0, contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0,
+  exposure: 0, contrast: 0, pivot: 0.5, highlights: 0, shadows: 0, whites: 0, blacks: 0,
   temperature: 0, tint: 0, saturation: 0, vibrance: 0, clarity: 0, sharpen: 0,
 };
 
@@ -112,50 +112,63 @@ export function analyzePro(img: HTMLImageElement, sample = 320): ProStats {
 // style on top (attenuated so it refines rather than dominates).
 export function computeEnhance(s: ProStats, style?: EditStyle | null): ProParams {
   const p: ProParams = { ...NEUTRAL_PRO };
-
-  // Auto levels: pull the black/white input points to the image's real range,
-  // but leave a little headroom so it never looks crushed/blown.
-  p.blackIn = clamp((s.black - 4) / 255, 0, 0.16);
-  p.whiteIn = clamp((s.white + 4) / 255, 0.82, 1);
-
-  // Auto white balance (gray-world), applied only ~55% so mood is preserved.
-  const grayTarget = (s.meanR + s.meanG + s.meanB) / 3 || 1;
-  const gain = (m: number) => clamp(1 + ((grayTarget / (m || 1)) - 1) * 0.55, 0.82, 1.22);
-  p.wbR = gain(s.meanR); p.wbG = gain(s.meanG); p.wbB = gain(s.meanB);
-
   const meanN = s.meanL / 255;
   const stdN = s.stdL / 255;
+  const dark = meanN < 0.42;
+  const bright = meanN > 0.62;
 
-  // Exposure toward a pleasing midtone, gently.
-  p.exposure = clamp((0.47 - meanN) * 0.7, -0.35, 0.35);
-  // Contrast: boost flat images, ease already-punchy ones.
-  p.contrast = clamp((0.17 - stdN) * 1.9, -0.12, 0.42);
-  // Recover blown highlights / lift blocked shadows based on real clipping.
-  p.highlights = clamp(-s.clipHigh * 6 - 0.06, -0.6, 0);
-  p.shadows = clamp(s.clipLow * 6 + 0.08, 0, 0.55);
-  p.whites = 0.05;
-  p.blacks = -0.04;
-  // Detail: clarity + sharpening scaled down when the image is already crisp.
-  const crispRoom = 1 - s.sharpness;
-  p.clarity = clamp(0.1 + 0.12 * crispRoom, 0.06, 0.24);
-  p.sharpen = clamp(0.18 + 0.28 * crispRoom, 0.12, 0.5);
-  // A little vibrance for life, protecting skin/already-saturated tones later.
-  p.vibrance = 0.14;
+  // Very gentle auto levels — only trim the extreme tails, keep lots of headroom
+  // so nothing looks crushed or blown (aggressive levels read as "over-edited").
+  // Skip the black-point lift on dark images so it can't fight the brightening.
+  p.blackIn = clamp((s.black - 1) / 255, 0, dark ? 0.015 : 0.035);
+  p.whiteIn = clamp((s.white + 1) / 255, 0.9, 1);
 
-  // Layer the learned style (attenuated). Auto handles per-image correctness;
-  // the style adds the owner's consistent taste.
+  // Auto white balance (gray-world), applied only ~40% so the mood is preserved.
+  const grayTarget = (s.meanR + s.meanG + s.meanB) / 3 || 1;
+  const gain = (m: number) => clamp(1 + ((grayTarget / (m || 1)) - 1) * 0.4, 0.88, 1.14);
+  p.wbR = gain(s.meanR); p.wbG = gain(s.meanG); p.wbB = gain(s.meanB);
+
+  // EXPOSURE leads: bring the image to a pleasing midtone. Dark photos get
+  // brightened MORE (fixes "dark image getting darker"); bright ones eased down.
+  p.exposure = clamp((0.48 - meanN) * (dark ? 1.35 : 0.7), -0.3, 0.62);
+
+  // Open the SHADOWS (the single biggest "pro" move) — more when dark/clipped.
+  p.shadows = clamp(0.12 + s.clipLow * 4 + (dark ? 0.12 : 0), 0, 0.42);
+  // Tame HIGHLIGHTS only if actually clipping, or slightly if the image is hot.
+  p.highlights = clamp(-s.clipHigh * 5 - (bright ? 0.08 : 0), -0.4, 0);
+
+  // CONTRAST: gentle, and mostly OFF for dark images so it can't crush them.
+  // It rotates around the image's own midtone (pivot) so overall brightness holds.
+  let c = (0.15 - stdN) * 0.7;
+  if (dark) c *= 0.3;
+  p.contrast = clamp(c, -0.04, 0.12);
+  p.pivot = clamp(meanN, 0.4, 0.52);
+
+  p.whites = 0.03;
+  p.blacks = -0.02;
+
+  // DETAIL: subtle. More on soft images, little on already-crisp ones.
+  const soft = 1 - s.sharpness;
+  p.clarity = clamp(0.05 + 0.07 * soft, 0.03, 0.13);
+  p.sharpen = clamp(0.14 + 0.2 * soft, 0.1, 0.34);
+
+  // A touch of vibrance for life (protects already-saturated tones later).
+  p.vibrance = 0.12;
+
+  // Layer the learned style — attenuated, and CONTRAST especially gentle so a
+  // punchy style can't blow out this image.
   if (style?.adjustments) {
-    const a = style.adjustments, wgt = 0.7;
-    p.exposure = clamp(p.exposure + a.exposure * wgt, -0.6, 0.6);
-    p.contrast = clamp(p.contrast + a.contrast * wgt, -0.5, 0.6);
-    p.highlights = clamp(p.highlights + a.highlights * wgt, -0.8, 0.4);
-    p.shadows = clamp(p.shadows + a.shadows * wgt, -0.4, 0.8);
-    p.whites = clamp(p.whites + a.whites * wgt, -0.5, 0.5);
-    p.blacks = clamp(p.blacks + a.blacks * wgt, -0.5, 0.5);
-    p.temperature = clamp(p.temperature + a.temperature * wgt, -0.6, 0.6);
-    p.tint = clamp(p.tint + a.tint * wgt, -0.6, 0.6);
-    p.saturation = clamp(p.saturation + a.saturation * wgt, -0.6, 0.6);
-    p.vibrance = clamp(p.vibrance + a.vibrance * wgt, -0.4, 0.6);
+    const a = style.adjustments;
+    p.exposure = clamp(p.exposure + a.exposure * 0.5, -0.6, 0.6);
+    p.contrast = clamp(p.contrast + a.contrast * 0.3, -0.15, 0.24);
+    p.highlights = clamp(p.highlights + a.highlights * 0.45, -0.6, 0.3);
+    p.shadows = clamp(p.shadows + a.shadows * 0.45, -0.2, 0.6);
+    p.whites = clamp(p.whites + a.whites * 0.3, -0.3, 0.3);
+    p.blacks = clamp(p.blacks + a.blacks * 0.3, -0.3, 0.3);
+    p.temperature = clamp(p.temperature + a.temperature * 0.5, -0.5, 0.5);
+    p.tint = clamp(p.tint + a.tint * 0.5, -0.5, 0.5);
+    p.saturation = clamp(p.saturation + a.saturation * 0.45, -0.4, 0.5);
+    p.vibrance = clamp(p.vibrance + a.vibrance * 0.45, -0.3, 0.5);
   }
   return p;
 }
@@ -204,9 +217,18 @@ export function renderPro(img: HTMLImageElement, p: ProParams, maxDim = Infinity
   const d = image.data;
   const n = w * h;
 
-  const expF = Math.pow(2, p.exposure * 0.7);
-  const contrastF = 1 + p.contrast * 0.6;
-  const range = Math.max(0.15, p.whiteIn - p.blackIn);
+  const expF = Math.pow(2, p.exposure * 0.6);
+  const range = Math.max(0.4, p.whiteIn - p.blackIn);
+  const pivot = p.pivot ?? 0.5;
+  const cAmt = p.contrast;
+  // Midtone-weighted contrast: strongest near the pivot, ~0 at the extremes, so
+  // it shapes midtones without crushing shadows or blowing highlights.
+  const applyC = (v: number) => {
+    if (cAmt === 0) return v;
+    const x = v - pivot;
+    const wgt = 1 - Math.min(1, Math.abs(x) / 0.55);
+    return clamp01(v + x * cAmt * 1.15 * wgt);
+  };
 
   // Pass 1: tone + colour → RGB, and capture resulting luma for detail pass.
   const luma = new Float32Array(n);
@@ -214,47 +236,47 @@ export function renderPro(img: HTMLImageElement, p: ProParams, maxDim = Infinity
     let r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
     // white balance
     r *= p.wbR; g *= p.wbG; b *= p.wbB;
-    // levels (expand tonal range)
+    // gentle levels
     r = (r - p.blackIn) / range; g = (g - p.blackIn) / range; b = (b - p.blackIn) / range;
     // exposure
     r *= expF; g *= expF; b *= expF;
-    // tone regions
-    let l = clamp01(lumaOf(r, g, b));
-    const sw = clamp01(1 - l / 0.5), hw = clamp01((l - 0.5) / 0.5);
-    const bw = clamp01(1 - l / 0.18), ww = clamp01((l - 0.82) / 0.18);
-    const lift = p.shadows * 0.18 * sw + p.highlights * 0.18 * hw + p.blacks * 0.12 * bw + p.whites * 0.12 * ww;
-    r += lift; g += lift; b += lift;
-    // contrast around mid
-    r = 0.5 + (r - 0.5) * contrastF; g = 0.5 + (g - 0.5) * contrastF; b = 0.5 + (b - 0.5) * contrastF;
-    // temperature / tint
-    r += p.temperature * 0.10; b -= p.temperature * 0.10; g -= p.tint * 0.09;
     r = clamp01(r); g = clamp01(g); b = clamp01(b);
+    // tone regions — lift shadows / recover highlights
+    let l = lumaOf(r, g, b);
+    const sw = clamp01(1 - l / 0.5), hw = clamp01((l - 0.5) / 0.5);
+    const bw = clamp01(1 - l / 0.2), ww = clamp01((l - 0.8) / 0.2);
+    const lift = p.shadows * 0.22 * sw + p.highlights * 0.22 * hw + p.blacks * 0.1 * bw + p.whites * 0.1 * ww;
+    r = clamp01(r + lift); g = clamp01(g + lift); b = clamp01(b + lift);
+    // gentle midtone contrast (never crushes darks)
+    r = applyC(r); g = applyC(g); b = applyC(b);
+    // temperature / tint
+    r = clamp01(r + p.temperature * 0.08); b = clamp01(b - p.temperature * 0.08); g = clamp01(g - p.tint * 0.07);
     // saturation + vibrance (vibrance protects already-saturated pixels)
     l = clamp01(lumaOf(r, g, b));
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
     const sat = mx === 0 ? 0 : (mx - mn) / mx;
-    const satF = 1 + p.saturation * 0.8 + p.vibrance * 0.85 * (1 - sat);
+    const satF = 1 + p.saturation * 0.7 + p.vibrance * 0.7 * (1 - sat);
     r = clamp01(l + (r - l) * satF); g = clamp01(l + (g - l) * satF); b = clamp01(l + (b - l) * satF);
 
     d[i] = r * 255; d[i + 1] = g * 255; d[i + 2] = b * 255;
     luma[pi] = lumaOf(r, g, b); // 0..1
   }
 
-  // Pass 2: detail — clarity (large-radius local contrast) + sharpen (fine).
+  // Pass 2: detail — ADDITIVE unsharp (adds local contrast/detail symmetrically,
+  // so it never globally darkens the image the way a multiply ratio would).
   if (p.clarity > 0.001 || p.sharpen > 0.001) {
-    const rBig = Math.max(2, Math.round(Math.min(w, h) / 55));
+    const rBig = Math.max(2, Math.round(Math.min(w, h) / 60));
     const rSmall = Math.max(1, Math.round(Math.min(w, h) / 900));
     const blurBig = p.clarity > 0.001 ? boxBlur(luma, w, h, rBig) : null;
     const blurSmall = p.sharpen > 0.001 ? boxBlur(luma, w, h, rSmall) : null;
     for (let i = 0, pi = 0; i < d.length; i += 4, pi++) {
-      const lo = luma[pi] || 0.0001;
-      let target = lo;
-      if (blurBig) target += p.clarity * 0.9 * (lo - blurBig[pi]);
-      if (blurSmall) target += p.sharpen * 1.1 * (lo - blurSmall[pi]);
-      const ratio = clamp(target / lo, 0.5, 1.8);
-      d[i] = clamp01((d[i] / 255) * ratio) * 255;
-      d[i + 1] = clamp01((d[i + 1] / 255) * ratio) * 255;
-      d[i + 2] = clamp01((d[i + 2] / 255) * ratio) * 255;
+      let delta = 0;
+      if (blurBig) delta += p.clarity * 0.7 * (luma[pi] - blurBig[pi]);
+      if (blurSmall) delta += p.sharpen * 0.9 * (luma[pi] - blurSmall[pi]);
+      if (delta === 0) continue;
+      d[i] = clamp01(d[i] / 255 + delta) * 255;
+      d[i + 1] = clamp01(d[i + 1] / 255 + delta) * 255;
+      d[i + 2] = clamp01(d[i + 2] / 255 + delta) * 255;
     }
   }
 
@@ -262,62 +284,79 @@ export function renderPro(img: HTMLImageElement, p: ProParams, maxDim = Infinity
   return canvas;
 }
 
-// ---------- Saliency-based crop suggestion ----------
-// Returns a crop rect (in original px) that trims dead space toward the busiest
-// region, or null when the framing is already tight. Never crops aggressively.
-export function suggestCrop(img: HTMLImageElement, sample = 200):
+// ---------- Subject-aware crop suggestion ----------
+// Detects the in-focus SUBJECT (the sharp region against a softer background —
+// exactly how wildlife/portrait shots are composed) via a smoothed focus map,
+// then frames it with breathing room and rule-of-thirds. Returns a crop rect in
+// original px, or null when the subject already fills the frame.
+export function suggestCrop(img: HTMLImageElement, sample = 256):
   { x: number; y: number; w: number; h: number } | null {
   const W = img.naturalWidth, H = img.naturalHeight;
   if (!W || !H) return null;
   const scale = Math.min(1, sample / Math.max(W, H));
-  const w = Math.max(8, Math.round(W * scale));
-  const h = Math.max(8, Math.round(H * scale));
+  const w = Math.max(16, Math.round(W * scale));
+  const h = Math.max(16, Math.round(H * scale));
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   const ctx = c.getContext("2d", { willReadFrequently: true })!;
   ctx.drawImage(img, 0, 0, w, h);
   const d = ctx.getImageData(0, 0, w, h).data;
 
-  // saliency = gradient magnitude per pixel
-  const sal = new Float32Array(w * h);
-  const L = (x: number, y: number) => {
-    const i = (y * w + x) * 4; return lumaOf(d[i], d[i + 1], d[i + 2]);
-  };
-  let total = 0;
+  // Focus map: local gradient magnitude = detail/sharpness. The subject is sharp;
+  // a blurred background scores low, so this localizes the subject.
+  const focus = new Float32Array(w * h);
+  const L = (x: number, y: number) => { const i = (y * w + x) * 4; return lumaOf(d[i], d[i + 1], d[i + 2]); };
   for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
     const gx = L(x + 1, y) - L(x - 1, y);
     const gy = L(x, y + 1) - L(x, y - 1);
-    const m = Math.abs(gx) + Math.abs(gy);
-    sal[y * w + x] = m; total += m;
+    focus[y * w + x] = Math.abs(gx) + Math.abs(gy);
+  }
+  // Smooth into regions so a single busy area (the subject) dominates.
+  const sm = boxBlur(focus, w, h, Math.max(2, Math.round(Math.min(w, h) / 26)));
+
+  const colW = new Float32Array(w), rowW = new Float32Array(h);
+  let total = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = sm[y * w + x]; colW[x] += v; rowW[y] += v; total += v;
   }
   if (total <= 0) return null;
 
-  // column/row saliency profiles → trim low-energy borders (keep >=90% energy)
-  const colE = new Float32Array(w), rowE = new Float32Array(h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const v = sal[y * w + x]; colE[x] += v; rowE[y] += v;
-  }
-  const trim = (energy: Float32Array, len: number, keep: number) => {
-    let sum = 0; for (let i = 0; i < len; i++) sum += energy[i];
-    const drop = sum * (1 - keep);
-    let lo = 0, hi = len - 1, dl = 0, dh = 0;
-    while (lo < hi) {
-      if (energy[lo] <= energy[hi]) { if (dl + energy[lo] > drop / 2) break; dl += energy[lo]; lo++; }
-      else { if (dh + energy[hi] > drop / 2) break; dh += energy[hi]; hi--; }
-    }
-    return [lo, hi] as [number, number];
+  // Weighted percentile positions bounding the central mass of subject focus.
+  const bounds = (prof: Float32Array, len: number, loP: number, hiP: number): [number, number] => {
+    let sum = 0; for (let i = 0; i < len; i++) sum += prof[i];
+    let acc = 0, lo = 0, hi = len - 1; const loT = sum * loP, hiT = sum * hiP;
+    for (let i = 0; i < len; i++) { acc += prof[i]; if (acc >= loT) { lo = i; break; } }
+    acc = 0; for (let i = 0; i < len; i++) { acc += prof[i]; if (acc >= hiT) { hi = i; break; } }
+    return [lo, Math.max(lo + 1, hi)];
   };
-  const [x0, x1] = trim(colE, w, 0.92);
-  const [y0, y1] = trim(rowE, h, 0.92);
+  let [x0, x1] = bounds(colW, w, 0.1, 0.9);
+  let [y0, y1] = bounds(rowW, h, 0.1, 0.9);
 
-  const cropW = (x1 - x0 + 1) / w, cropH = (y1 - y0 + 1) / h;
-  // Only suggest when it removes a meaningful border (>8% on some side).
-  if (cropW > 0.9 && cropH > 0.9) return null;
+  // normalize + breathing room around the subject
+  let nx0 = x0 / w, nx1 = x1 / w, ny0 = y0 / h, ny1 = y1 / h;
+  const padX = (nx1 - nx0) * 0.28 + 0.04, padY = (ny1 - ny0) * 0.28 + 0.04;
+  nx0 = Math.max(0, nx0 - padX); nx1 = Math.min(1, nx1 + padX);
+  ny0 = Math.max(0, ny0 - padY); ny1 = Math.min(1, ny1 + padY);
+
+  // don't crop too tight — keep at least 55% of each dimension
+  const ensureMin = (a: number, b: number, min: number): [number, number] => {
+    if (b - a >= min) return [a, b];
+    const mid = (a + b) / 2; let na = mid - min / 2, nb = mid + min / 2;
+    if (na < 0) { nb -= na; na = 0; } if (nb > 1) { na -= nb - 1; nb = 1; }
+    return [Math.max(0, na), Math.min(1, nb)];
+  };
+  [nx0, nx1] = ensureMin(nx0, nx1, 0.55);
+  [ny0, ny1] = ensureMin(ny0, ny1, 0.55);
+
+  const cw = nx1 - nx0, ch = ny1 - ny0;
+  // If the subject already fills the frame, no crop is worth it.
+  if (cw > 0.9 && ch > 0.9) return null;
+  // Guard against a degenerate/near-full crop.
+  if (cw * ch > 0.86) return null;
+
   return {
-    x: Math.round((x0 / w) * W),
-    y: Math.round((y0 / h) * H),
-    w: Math.round(cropW * W),
-    h: Math.round(cropH * H),
+    x: Math.round(nx0 * W), y: Math.round(ny0 * H),
+    w: Math.round(cw * W), h: Math.round(ch * H),
   };
 }
 
