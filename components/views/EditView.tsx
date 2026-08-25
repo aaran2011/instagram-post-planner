@@ -1,44 +1,37 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useApp, Spinner } from "../ui";
 import { api } from "../store";
 import type { EditAdjustments } from "../store";
 import {
-  ADJ_KEYS, ZERO_ADJUST, loadImage, analyzeStats, deriveAdjustments,
-  averageAdjustments, renderAdjusted, canvasToBlob, describeStyle, isZero,
+  loadImage, analyzeStats, deriveAdjustments, averageAdjustments, describeStyle,
 } from "../edit-engine";
+import {
+  analyzePro, computeEnhance, renderPro, suggestCrop, cropCanvas, dHash, groupDuplicates,
+  canvasToBlob, PRO_SLIDERS, NEUTRAL_PRO, type ProParams,
+} from "../pro-edit";
 import { uploadFile } from "../uploader";
 import { isAccepted } from "../media-utils";
-import { IconWand, IconUpload, IconCheck, IconTrash, IconRefresh, IconSparkle, IconClose } from "../icons";
+import {
+  IconWand, IconUpload, IconCheck, IconTrash, IconRefresh, IconSparkle, IconClose,
+  IconChevronL, IconChevronR, IconCalendar, IconEye, IconGrid,
+} from "../icons";
 
-const SLIDERS: { key: keyof EditAdjustments; label: string }[] = [
-  { key: "exposure", label: "Exposure" },
-  { key: "contrast", label: "Contrast" },
-  { key: "highlights", label: "Highlights" },
-  { key: "shadows", label: "Shadows" },
-  { key: "whites", label: "Whites" },
-  { key: "blacks", label: "Blacks" },
-  { key: "temperature", label: "Temperature" },
-  { key: "tint", label: "Tint" },
-  { key: "saturation", label: "Saturation" },
-  { key: "vibrance", label: "Vibrance" },
-];
-
-const PREVIEW_MAX = 1400; // px for on-screen previews; full-res used on save
-const PAIR_COUNT = 3; // number of before/after pairs used to learn the style
+const PREVIEW_MAX = 1500; // px for on-screen previews; full-res used on save
+const PAIR_COUNT = 3;
 
 export default function EditView() {
-  const { state, setState, toast, go } = useApp();
+  const { state } = useApp();
   const [mode, setMode] = useState<"edit" | "train">(state.editStyle ? "edit" : "train");
 
   return (
-    <div className="stack gap24" style={{ maxWidth: 1080 }}>
+    <div className="stack gap24" style={{ maxWidth: 1120 }}>
       <div className="sectionhead" style={{ marginBottom: 0 }}>
         <div className="htext">
           <h1>Edit Images</h1>
           <p className="muted tiny">
-            Train your personal editing style from before/after pairs, then apply it to new photos.
-            Only real photographic adjustments — never generated or invented detail.
+            Upload your photos, then let the AI edit each one professionally — analyzed per image,
+            using your trained style where it fits. Real photographic adjustments only, never generated detail.
           </p>
         </div>
       </div>
@@ -54,7 +47,7 @@ export default function EditView() {
         <StyleBadge />
       </div>
 
-      {mode === "train" ? <TrainPanel onDone={() => setMode("edit")} /> : <EditPanel />}
+      {mode === "train" ? <TrainPanel onDone={() => setMode("edit")} /> : <EditFlow />}
     </div>
   );
 }
@@ -63,22 +56,17 @@ function StyleBadge() {
   const { state } = useApp();
   const s = state.editStyle;
   if (!s) return <span className="pill warn"><span className="dot" /> No style yet</span>;
-  return (
-    <span className="pill ok" title={s.notes}>
-      <span className="dot" /> Style trained · {s.pairs} pairs
-    </span>
-  );
+  return <span className="pill ok" title={s.notes}><span className="dot" /> Style trained · {s.pairs} pairs</span>;
 }
 
-// ------------------------------ TRAIN ------------------------------
+// ============================ TRAIN ============================
 
 function TrainPanel({ onDone }: { onDone: () => void }) {
-  const { state, setState, toast } = useApp();
+  const { setState, toast } = useApp();
   const [before, setBefore] = useState<File[]>([]);
   const [after, setAfter] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ adj: EditAdjustments; notes: string } | null>(null);
-
   const ready = before.length === PAIR_COUNT && after.length === PAIR_COUNT;
 
   async function learn() {
@@ -98,9 +86,7 @@ function TrainPanel({ onDone }: { onDone: () => void }) {
       toast("Style learned and saved", "ok");
     } catch (e: any) {
       toast(e.message || "Could not analyze the pairs", "err");
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
   return (
@@ -109,16 +95,12 @@ function TrainPanel({ onDone }: { onDone: () => void }) {
         <b>Teach the app your look</b>
         <p className="tiny muted mt8">
           Add <b>{PAIR_COUNT} unedited</b> photos and the <b>{PAIR_COUNT} matching edited</b> versions in the same order —
-          drag &amp; drop or click to upload. The app measures the real differences (exposure, contrast, colour, tone)
-          and saves them as your reusable style. JPG / JPEG / PNG.
+          drag &amp; drop or click. The app learns your taste and layers it on top of its per-image professional edit.
         </p>
-        <div className="grid2 mt16" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="mt16" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <PairColumn title="Before (unedited)" files={before} setFiles={setBefore} accent="var(--text-2)" />
           <PairColumn title="After (your edit)" files={after} setFiles={setAfter} accent="var(--accent)" />
         </div>
-        {before.length !== after.length && (
-          <div className="banner warn mt16"><div>Add the same number of before and after photos, matched in order.</div></div>
-        )}
         <div className="flex mt16">
           <div className="grow tiny muted">{before.length}/{PAIR_COUNT} before · {after.length}/{PAIR_COUNT} after</div>
           <button className="btn primary" onClick={learn} disabled={!ready || busy}>
@@ -126,21 +108,11 @@ function TrainPanel({ onDone }: { onDone: () => void }) {
           </button>
         </div>
       </div>
-
       {result && (
         <div className="card" style={{ padding: 20 }}>
           <div className="flex gap8"><IconCheck size={18} /><b>Learned style</b></div>
           <p className="tiny muted mt8">{result.notes}</p>
-          <div className="mt12" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8 }}>
-            {SLIDERS.map((s) => (
-              <div key={s.key} className="tiny" style={{ display: "flex", justifyContent: "space-between", background: "var(--surface-2)", borderRadius: 8, padding: "6px 10px" }}>
-                <span className="muted">{s.label}</span>
-                <b>{fmtVal(result.adj[s.key])}</b>
-              </div>
-            ))}
-          </div>
-          <div className="flex mt16">
-            <div className="grow" />
+          <div className="flex mt16"><div className="grow" />
             <button className="btn subtle sm" onClick={onDone}><IconWand size={15} /> Start editing photos</button>
           </div>
         </div>
@@ -168,8 +140,8 @@ function PairColumn({ title, files, setFiles, accent }: {
         onDrop={(e) => { e.preventDefault(); setDragging(false); add(e.dataTransfer.files); }}
         onClick={() => { if (files.length < PAIR_COUNT) inputRef.current?.click(); }}
         style={{
-          display: "grid", gridTemplateColumns: `repeat(${PAIR_COUNT},1fr)`, gap: 6,
-          padding: 6, borderRadius: 10, cursor: files.length < PAIR_COUNT ? "pointer" : "default",
+          display: "grid", gridTemplateColumns: `repeat(${PAIR_COUNT},1fr)`, gap: 6, padding: 6, borderRadius: 10,
+          cursor: files.length < PAIR_COUNT ? "pointer" : "default",
           border: dragging ? "2px dashed var(--accent)" : "2px dashed transparent",
           background: dragging ? "var(--surface-2)" : "transparent", transition: "border-color .15s, background .15s",
         }}
@@ -199,31 +171,39 @@ function PairColumn({ title, files, setFiles, accent }: {
   );
 }
 
-// ------------------------------ EDIT ------------------------------
+// ============================ EDIT FLOW ============================
 
 interface EditItem {
-  id: string;
-  file: File;
-  img: HTMLImageElement;
-  origUrl: string;
-  adj: EditAdjustments;
-  afterUrl: string;
-  saved: boolean;
+  id: string; file: File; img: HTMLImageElement; origUrl: string;
+  hash: string; isDup: boolean;
+  auto: ProParams; params: ProParams;
+  crop: { x: number; y: number; w: number; h: number } | null; useCrop: boolean;
+  editedUrl: string; saved: boolean;
 }
 
-function EditPanel() {
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+function EditFlow() {
   const { state, setState, toast, go } = useApp();
-  const base = state.editStyle?.adjustments ?? ZERO_ADJUST;
   const [items, setItems] = useState<EditItem[]>([]);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [stage, setStage] = useState<"collect" | "edited">("collect");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [viewIdx, setViewIdx] = useState(0);
+  const [adjustOpen, setAdjustOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const renderAfter = useCallback(async (img: HTMLImageElement, adj: EditAdjustments) => {
-    const canvas = renderAdjusted(img, adj, PREVIEW_MAX);
-    const blob = await canvasToBlob(canvas, 0.9);
-    return blob ? URL.createObjectURL(blob) : "";
-  }, []);
+  // ---- add / dedupe ----
+  const recomputeDupes = (list: EditItem[]): EditItem[] => {
+    const groups = groupDuplicates(list.map((i) => i.hash));
+    const seen: Record<number, boolean> = {};
+    return list.map((it, idx) => {
+      const g = groups[idx];
+      const isDup = g !== -1 && seen[g] === true;
+      if (g !== -1) seen[g] = true;
+      return { ...it, isDup };
+    });
+  };
 
   const addFiles = useCallback(async (list: FileList | File[] | null) => {
     if (!list) return;
@@ -234,194 +214,285 @@ function EditPanel() {
       const next: EditItem[] = [];
       for (const file of files) {
         const img = await loadImage(file);
-        const adj = { ...base };
-        const afterUrl = await renderAfter(img, adj);
-        next.push({ id: Math.random().toString(36).slice(2), file, img, origUrl: URL.createObjectURL(file), adj, afterUrl, saved: false });
+        next.push({
+          id: uid(), file, img, origUrl: URL.createObjectURL(file), hash: dHash(img), isDup: false,
+          auto: NEUTRAL_PRO, params: NEUTRAL_PRO, crop: null, useCrop: false, editedUrl: "", saved: false,
+        });
       }
-      setItems((prev) => [...prev, ...next]);
-    } catch (e: any) {
-      toast(e.message || "Could not load images", "err");
-    } finally {
-      setBusy(false);
+      setItems((prev) => recomputeDupes([...prev, ...next]));
+    } catch (e: any) { toast(e.message || "Could not load images", "err"); }
+    finally { setBusy(false); }
+  }, [toast]);
+
+  function removeItem(id: string) {
+    setItems((prev) => recomputeDupes(prev.filter((i) => i.id !== id)));
+  }
+
+  function renderItemCanvas(it: EditItem, maxDim: number): HTMLCanvasElement {
+    const canvas = renderPro(it.img, it.params, maxDim);
+    if (it.useCrop && it.crop) {
+      const sc = canvas.width / it.img.naturalWidth;
+      return cropCanvas(canvas, { x: it.crop.x * sc, y: it.crop.y * sc, w: it.crop.w * sc, h: it.crop.h * sc });
     }
-  }, [base, renderAfter, toast]);
-
-  const open = items.find((i) => i.id === openId) || null;
-
-  async function updateAdj(id: string, adj: EditAdjustments) {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, adj } : i)));
-    const it = items.find((i) => i.id === id);
-    if (!it) return;
-    const url = await renderAfter(it.img, adj);
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, afterUrl: url, saved: false } : i)));
+    return canvas;
   }
 
-  function applyToAll(adj: EditAdjustments) {
-    items.forEach(async (it) => {
-      const url = await renderAfter(it.img, adj);
-      setItems((prev) => prev.map((i) => (i.id === it.id ? { ...i, adj: { ...adj }, afterUrl: url, saved: false } : i)));
-    });
-    toast("Applied to all photos", "ok");
+  async function renderPreviewUrl(it: EditItem): Promise<string> {
+    const blob = await canvasToBlob(renderItemCanvas(it, PREVIEW_MAX), 0.9);
+    return blob ? URL.createObjectURL(blob) : "";
   }
 
-  async function saveOne(it: EditItem): Promise<boolean> {
-    const canvas = renderAdjusted(it.img, it.adj, Infinity); // full resolution
-    const blob = await canvasToBlob(canvas, 0.95);
-    if (!blob) return false;
-    const name = it.file.name.replace(/\.(\w+)$/, "") + "-edited.jpg";
-    const edited = new File([blob], name, { type: "image/jpeg" });
-    const media = await uploadFile(edited, Boolean(state.config.blobDirect));
-    setState((prev) => ({ ...prev, media: [media, ...prev.media] }));
-    return true;
-  }
-
-  async function saveToLibrary(id: string) {
-    const it = items.find((i) => i.id === id);
-    if (!it) return;
+  // ---- process all ("Edit Images") ----
+  async function editAll() {
+    if (!items.length) return;
     setBusy(true);
     try {
-      const okSaved = await saveOne(it);
-      if (okSaved) { setItems((prev) => prev.map((i) => (i.id === id ? { ...i, saved: true } : i))); toast("Saved to library", "ok"); }
-    } catch (e: any) { toast(e.message || "Save failed", "err"); } finally { setBusy(false); }
-  }
-
-  async function saveAll() {
-    setBusy(true);
-    let count = 0;
-    try {
-      for (const it of items) {
-        if (it.saved) continue;
-        if (await saveOne(it)) count++;
+      const out: EditItem[] = [];
+      for (let i = 0; i < items.length; i++) {
+        setProgress(`Editing ${i + 1}/${items.length}…`);
+        const it = items[i];
+        const s = analyzePro(it.img);
+        const auto = computeEnhance(s, state.editStyle);
+        const crop = suggestCrop(it.img);
+        const withParams: EditItem = { ...it, auto, params: auto, crop, useCrop: Boolean(crop) };
+        withParams.editedUrl = await renderPreviewUrl(withParams);
+        out.push(withParams);
+        // yield to the UI so the progress label updates
+        await new Promise((r) => setTimeout(r, 0));
       }
-      setItems((prev) => prev.map((i) => ({ ...i, saved: true })));
-      toast(`Saved ${count} edited photo${count === 1 ? "" : "s"} to library`, "ok");
-    } catch (e: any) { toast(e.message || "Save failed", "err"); } finally { setBusy(false); }
+      setItems(out);
+      setStage("edited");
+      setViewIdx(0);
+      toast("Photos edited", "ok");
+    } catch (e: any) { toast(e.message || "Editing failed", "err"); }
+    finally { setBusy(false); setProgress(""); }
   }
 
-  return (
-    <div className="stack gap16">
-      {!state.editStyle && (
-        <div className="banner warn"><div>No editing style trained yet — photos below use neutral settings. Switch to <b>Train style</b> to teach the app your look, or adjust manually.</div></div>
-      )}
+  async function reRender(id: string, patch: Partial<EditItem>) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch, saved: false } : i)));
+    const base = items.find((i) => i.id === id);
+    if (!base) return;
+    const merged = { ...base, ...patch } as EditItem;
+    const url = await renderPreviewUrl(merged);
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch, editedUrl: url, saved: false } : i)));
+  }
 
-      <div
-        className="dropzone"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
-        onClick={() => inputRef.current?.click()}
-        style={{ cursor: "pointer", padding: 28, textAlign: "center", border: "2px dashed var(--border)", borderRadius: 14, background: "var(--surface)" }}
-      >
-        <IconUpload size={26} />
-        <div style={{ fontWeight: 650, marginTop: 8 }}>Drop photos or click to upload</div>
-        <div className="tiny muted">Batch upload · your style is applied automatically · edit any photo before saving</div>
-        <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ""; }} />
-      </div>
+  // ---- add to calendar ----
+  async function addToCalendar() {
+    const keep = items.filter((i) => !i.isDup);
+    const skipped = items.length - keep.length;
+    if (!keep.length) { toast("No non-duplicate photos to add", "err"); return; }
+    setBusy(true);
+    try {
+      const mediaIds: string[] = [];
+      for (let i = 0; i < keep.length; i++) {
+        setProgress(`Saving ${i + 1}/${keep.length}…`);
+        const it = keep[i];
+        const blob = await canvasToBlob(renderItemCanvas(it, Infinity), 0.95);
+        if (!blob) continue;
+        const name = it.file.name.replace(/\.(\w+)$/, "") + "-edited.jpg";
+        const media = await uploadFile(new File([blob], name, { type: "image/jpeg" }), Boolean(state.config.blobDirect));
+        mediaIds.push(media.id);
+        setState((prev) => ({ ...prev, media: [media, ...prev.media] }));
+      }
+      setProgress("Building your plan…");
+      const res = await api.post("/api/plan/generate", { mediaIds });
+      setState(res);
+      toast(`Added ${mediaIds.length} edited photo${mediaIds.length === 1 ? "" : "s"} to the calendar` + (skipped ? ` · skipped ${skipped} duplicate${skipped === 1 ? "" : "s"}` : ""), "ok");
+      go("calendar");
+    } catch (e: any) { toast(e.message || "Could not add to calendar", "err"); }
+    finally { setBusy(false); setProgress(""); }
+  }
 
-      {busy && <div className="flex gap8 tiny muted"><Spinner /> Working…</div>}
+  const dupCount = items.filter((i) => i.isDup).length;
 
-      {items.length > 0 && (
-        <>
-          <div className="flex">
-            <div className="grow tiny muted">{items.length} photo{items.length === 1 ? "" : "s"} · {items.filter((i) => i.saved).length} saved</div>
-            <button className="btn subtle sm" onClick={() => setItems([])} style={{ marginRight: 8 }}><IconTrash size={14} /> Clear</button>
-            <button className="btn primary sm" onClick={saveAll} disabled={busy}><IconCheck size={15} /> Save all to library</button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14 }}>
-            {items.map((it) => (
-              <div key={it.id} className="card" style={{ padding: 10 }}>
-                <CompareBox origUrl={it.origUrl} afterUrl={it.afterUrl} />
-                <div className="flex gap8 mt8">
-                  <button className="btn subtle sm grow" onClick={() => setOpenId(it.id)}><IconWand size={14} /> Adjust</button>
-                  <button className="btn sm grow" onClick={() => saveToLibrary(it.id)} disabled={it.saved}>
-                    {it.saved ? <><IconCheck size={14} /> Saved</> : "Save"}
+  // -------- COLLECT STAGE (upload + grid) --------
+  if (stage === "collect") {
+    return (
+      <div className="stack gap16">
+        {!state.editStyle && (
+          <div className="banner warn"><div>No editing style trained yet — the AI will still edit each photo professionally; training just adds your personal taste on top.</div></div>
+        )}
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
+          onClick={() => inputRef.current?.click()}
+          style={{ cursor: "pointer", padding: 30, textAlign: "center", border: "2px dashed var(--border)", borderRadius: 14, background: "var(--surface)" }}
+        >
+          <IconUpload size={28} />
+          <div style={{ fontWeight: 650, marginTop: 8 }}>Upload all your photos</div>
+          <div className="tiny muted">Drag &amp; drop or click · batch upload · nothing is edited until you press “Edit Images”.</div>
+          <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ""; }} />
+        </div>
+
+        {busy && <div className="flex gap8 tiny muted"><Spinner /> {progress || "Loading…"}</div>}
+
+        {items.length > 0 && (
+          <>
+            <div className="flex">
+              <div className="grow tiny muted">
+                {items.length} photo{items.length === 1 ? "" : "s"}
+                {dupCount > 0 && <> · <span style={{ color: "var(--warn)" }}>{dupCount} duplicate{dupCount === 1 ? "" : "s"} flagged</span></>}
+              </div>
+              <button className="btn subtle sm" onClick={() => setItems([])} style={{ marginRight: 8 }}><IconTrash size={14} /> Clear</button>
+              <button className="btn primary" onClick={editAll} disabled={busy}><IconWand size={16} /> Edit Images</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12 }}>
+              {items.map((it) => (
+                <div key={it.id} className="card" style={{ padding: 6, position: "relative" }}>
+                  <div style={{ aspectRatio: "1", borderRadius: 8, overflow: "hidden", background: "var(--surface-2)" }}>
+                    <img src={it.origUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: it.isDup ? 0.55 : 1 }} />
+                  </div>
+                  {it.isDup && (
+                    <span style={{ position: "absolute", top: 10, left: 10, background: "var(--warn)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 6 }}>DUPLICATE</span>
+                  )}
+                  <button onClick={() => removeItem(it.id)} title="Remove"
+                    style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,.6)", color: "#fff", border: "none", borderRadius: 6, width: 22, height: 22, cursor: "pointer", display: "grid", placeItems: "center" }}>
+                    <IconClose size={13} />
                   </button>
                 </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+              ))}
+            </div>
+            {dupCount > 0 && <p className="tiny muted">Duplicates are flagged and will be skipped when adding to the calendar.</p>}
+          </>
+        )}
+      </div>
+    );
+  }
 
-      {open && (
-        <AdjustModal
-          item={open}
-          onChange={(adj) => updateAdj(open.id, adj)}
-          onApplyAll={(adj) => applyToAll(adj)}
-          resetTo={base}
-          onClose={() => setOpenId(null)}
+  // -------- EDITED STAGE (full-screen preview) --------
+  const cur = items[viewIdx];
+  return (
+    <div className="stack gap12">
+      <div className="flex">
+        <button className="btn subtle sm" onClick={() => setStage("collect")}><IconGrid size={14} /> Back to photos</button>
+        <div className="grow" />
+        <div className="tiny muted" style={{ alignSelf: "center", marginRight: 10 }}>{viewIdx + 1} / {items.length}</div>
+        <button className="btn primary" onClick={addToCalendar} disabled={busy}>
+          {busy ? <Spinner /> : <IconCalendar size={16} />} Add to Calendar
+        </button>
+      </div>
+      {busy && progress && <div className="flex gap8 tiny muted"><Spinner /> {progress}</div>}
+
+      {cur && <BigPreview
+        item={cur}
+        onPrev={() => setViewIdx((i) => Math.max(0, i - 1))}
+        onNext={() => setViewIdx((i) => Math.min(items.length - 1, i + 1))}
+        canPrev={viewIdx > 0} canNext={viewIdx < items.length - 1}
+        onToggleCrop={() => reRender(cur.id, { useCrop: !cur.useCrop })}
+        onAdjust={() => setAdjustOpen(true)}
+      />}
+
+      {/* thumbnail strip */}
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+        {items.map((it, i) => (
+          <button key={it.id} onClick={() => setViewIdx(i)}
+            style={{ flex: "none", width: 60, height: 60, borderRadius: 8, overflow: "hidden", padding: 0, cursor: "pointer", position: "relative", border: i === viewIdx ? "2px solid var(--accent)" : "2px solid transparent", background: "var(--surface-2)" }}>
+            <img src={it.editedUrl || it.origUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {it.isDup && <span style={{ position: "absolute", inset: 0, background: "rgba(217,130,11,.35)" }} />}
+          </button>
+        ))}
+      </div>
+
+      {adjustOpen && cur && (
+        <AdjustModal item={cur} onClose={() => setAdjustOpen(false)}
+          onChange={(params) => reRender(cur.id, { params })}
+          onResetAuto={() => reRender(cur.id, { params: cur.auto })}
+          onApplyAll={(params) => { items.forEach((it) => reRender(it.id, { params: { ...params } })); }}
         />
       )}
     </div>
   );
 }
 
-// A before/after compare slider.
-function CompareBox({ origUrl, afterUrl }: { origUrl: string; afterUrl: string }) {
-  const [pos, setPos] = useState(50);
+function BigPreview({ item, onPrev, onNext, canPrev, canNext, onToggleCrop, onAdjust }: {
+  item: EditItem; onPrev: () => void; onNext: () => void; canPrev: boolean; canNext: boolean;
+  onToggleCrop: () => void; onAdjust: () => void;
+}) {
+  const [comparing, setComparing] = useState(false);
+  const showOriginal = comparing;
+  const src = showOriginal ? item.origUrl : (item.editedUrl || item.origUrl);
   return (
-    <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", background: "var(--surface-2)", aspectRatio: "1" }}>
-      <img src={origUrl} alt="before" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-      <div style={{ position: "absolute", inset: 0, width: `${pos}%`, overflow: "hidden" }}>
-        {afterUrl && <img src={afterUrl} alt="after" style={{ width: `${100 / (pos / 100)}%`, maxWidth: "none", height: "100%", objectFit: "cover" }} />}
+    <div className="card" style={{ padding: 12 }}>
+      <div style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", display: "grid", placeItems: "center", minHeight: 320 }}>
+        <img src={src} alt="" style={{ maxWidth: "100%", maxHeight: "68vh", objectFit: "contain", display: "block" }} />
+        {item.isDup && <span style={{ position: "absolute", top: 10, left: 10, background: "var(--warn)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 6 }}>DUPLICATE — will be skipped</span>}
+        <span style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,.6)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 6 }}>
+          {showOriginal ? "ORIGINAL" : "EDITED"}
+        </span>
+        {canPrev && <NavBtn side="left" onClick={onPrev} />}
+        {canNext && <NavBtn side="right" onClick={onNext} />}
       </div>
-      <div style={{ position: "absolute", top: 0, bottom: 0, left: `${pos}%`, width: 2, background: "#fff", boxShadow: "0 0 0 1px rgba(0,0,0,.3)" }} />
-      <span style={{ position: "absolute", top: 6, left: 6, fontSize: 10, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.55)", padding: "2px 6px", borderRadius: 5 }}>BEFORE</span>
-      <span style={{ position: "absolute", top: 6, right: 6, fontSize: 10, fontWeight: 700, color: "#fff", background: "rgba(0,0,0,.55)", padding: "2px 6px", borderRadius: 5 }}>AFTER</span>
-      <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(Number(e.target.value))}
-        style={{ position: "absolute", bottom: 6, left: "10%", width: "80%" }} />
+      <div className="flex gap8 mt12 wrap" style={{ alignItems: "center" }}>
+        <button
+          className="btn subtle sm"
+          onPointerDown={(e) => { e.preventDefault(); setComparing(true); }}
+          onPointerUp={() => setComparing(false)}
+          onPointerLeave={() => setComparing(false)}
+          onPointerCancel={() => setComparing(false)}
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ touchAction: "none", userSelect: "none" }}
+        >
+          <IconEye size={15} /> Hold to compare
+        </button>
+        {item.crop && (
+          <button className={`btn sm ${item.useCrop ? "primary" : "subtle"}`} onClick={onToggleCrop}>
+            <IconGrid size={14} /> {item.useCrop ? "Auto-crop on" : "Auto-crop off"}
+          </button>
+        )}
+        <button className="btn subtle sm" onClick={onAdjust}><IconWand size={14} /> Adjust</button>
+        <div className="grow" />
+        <span className="tiny muted">{item.file.name}</span>
+      </div>
     </div>
   );
 }
 
-function AdjustModal({ item, onChange, onApplyAll, resetTo, onClose }: {
-  item: EditItem; onChange: (a: EditAdjustments) => void; onApplyAll: (a: EditAdjustments) => void;
-  resetTo: EditAdjustments; onClose: () => void;
+function NavBtn({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
+  return (
+    <button onClick={onClick} aria-label={side}
+      style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", [side]: 10, width: 40, height: 40, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.5)", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer" } as React.CSSProperties}>
+      {side === "left" ? <IconChevronL size={20} /> : <IconChevronR size={20} />}
+    </button>
+  );
+}
+
+function AdjustModal({ item, onClose, onChange, onResetAuto, onApplyAll }: {
+  item: EditItem; onClose: () => void; onChange: (p: ProParams) => void;
+  onResetAuto: () => void; onApplyAll: (p: ProParams) => void;
 }) {
-  const [adj, setAdj] = useState<EditAdjustments>(item.adj);
-  const set = (k: keyof EditAdjustments, v: number) => {
-    const next = { ...adj, [k]: v };
-    setAdj(next); onChange(next);
-  };
+  const [p, setP] = useState<ProParams>(item.params);
+  const set = (k: keyof ProParams, v: number) => { const next = { ...p, [k]: v }; setP(next); onChange(next); };
   return (
     <div className="overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" style={{ maxWidth: 860, width: "94%" }}>
+      <div className="modal" style={{ maxWidth: 900, width: "95%" }}>
         <div className="flex" style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
-          <b className="grow">Adjust photo</b>
+          <b className="grow">Fine-tune this photo</b>
           <button className="btn ghost sm" onClick={onClose}><IconClose size={18} /></button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 0 }}>
-          <div style={{ padding: 16, background: "var(--surface-2)" }}>
-            <CompareBox origUrl={item.origUrl} afterUrl={item.afterUrl} />
+          <div style={{ padding: 16, background: "var(--surface-2)", display: "grid", placeItems: "center" }}>
+            <img src={item.editedUrl || item.origUrl} alt="" style={{ maxWidth: "100%", maxHeight: "62vh", objectFit: "contain", borderRadius: 8 }} />
           </div>
           <div style={{ padding: 16, maxHeight: "70vh", overflowY: "auto" }}>
-            {SLIDERS.map((s) => (
-              <div key={s.key} style={{ marginBottom: 12 }}>
-                <div className="flex tiny" style={{ marginBottom: 4 }}>
+            {PRO_SLIDERS.map((s) => (
+              <div key={s.key} style={{ marginBottom: 11 }}>
+                <div className="flex tiny" style={{ marginBottom: 3 }}>
                   <span className="grow" style={{ fontWeight: 600 }}>{s.label}</span>
-                  <span className="muted">{fmtVal(adj[s.key])}</span>
+                  <span className="muted">{Math.round((p[s.key] as number) * 100)}</span>
                 </div>
-                <input type="range" min={-1} max={1} step={0.01} value={adj[s.key]}
+                <input type="range" min={-1} max={1} step={0.01} value={p[s.key] as number}
                   onChange={(e) => set(s.key, Number(e.target.value))} style={{ width: "100%" }} />
               </div>
             ))}
             <div className="flex gap8 mt8 wrap">
-              <button className="btn subtle sm" onClick={() => { setAdj({ ...resetTo }); onChange({ ...resetTo }); }}>
-                <IconRefresh size={14} /> Reset to style
-              </button>
-              <button className="btn subtle sm" onClick={() => { setAdj({ ...ZERO_ADJUST }); onChange({ ...ZERO_ADJUST }); }}>
-                Neutral
-              </button>
+              <button className="btn subtle sm" onClick={() => { setP(item.auto); onResetAuto(); }}><IconRefresh size={14} /> Reset to AI edit</button>
               <div className="grow" />
-              <button className="btn primary sm" onClick={() => onApplyAll(adj)}>Apply to all</button>
+              <button className="btn primary sm" onClick={() => onApplyAll(p)}>Apply to all</button>
             </div>
           </div>
         </div>
       </div>
     </div>
   );
-}
-
-function fmtVal(v: number) {
-  const n = Math.round(v * 100);
-  return (n > 0 ? "+" : "") + n;
 }
