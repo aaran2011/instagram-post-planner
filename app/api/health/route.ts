@@ -40,6 +40,7 @@ export async function GET() {
     upstashUrlHost: (process.env.UPSTASH_REDIS_REST_URL || "").replace(/^https?:\/\//, "").split("/")[0],
     upstashTokenLen: (process.env.UPSTASH_REDIS_REST_TOKEN || "").length,
     hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
+    hasGoogleKey: Boolean(process.env.GOOGLE_API_KEY),
     dbRead,
     mediaCount,
     postsByStatus,
