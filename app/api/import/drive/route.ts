@@ -18,7 +18,6 @@ const EXT: Record<string, string> = {
   "video/mp4": ".mp4", "video/quicktime": ".mov",
 };
 
-const MAX_FILES = 40;
 const MAX_BYTES = 60 * 1024 * 1024; // skip files larger than 60MB
 
 function folderIdFromUrl(url: string): string | null {
@@ -53,6 +52,11 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { return badRequest("Invalid body"); }
   const folderId = folderIdFromUrl(body?.folderUrl || "");
   if (!folderId) return badRequest("Couldn't find a folder id in that link. Paste a Google Drive folder URL.");
+
+  // Batching: import BATCH files per call; the client loops offset until done,
+  // so the whole folder is imported without any single call timing out.
+  const offset = Math.max(0, parseInt(String(body?.offset ?? 0)) || 0);
+  const BATCH = 10;
 
   // List files (paginated).
   const files: any[] = [];
@@ -90,7 +94,8 @@ export async function POST(req: NextRequest) {
 
   const created: MediaItem[] = [];
   let skipped = 0;
-  for (const f of media.slice(0, MAX_FILES)) {
+  const batch = media.slice(offset, offset + BATCH);
+  for (const f of batch) {
     const mime = String(f.mimeType).toLowerCase();
     const type = ALLOWED[mime];
     const size = f.size ? parseInt(f.size, 10) : 0;
@@ -141,13 +146,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const nextOffset = offset + BATCH < media.length ? offset + BATCH : null;
+
   const state = await buildClientState();
   return json({
     imported: created.length,
     scheduled,
     skipped,
     total: media.length,
-    note: media.length > MAX_FILES ? `Imported the first ${MAX_FILES} of ${media.length} files.` : undefined,
+    nextOffset,
     ...state,
   });
 }

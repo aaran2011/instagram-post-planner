@@ -109,10 +109,15 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
       <div className="app">
         {sidebarOpen && <div className="scrim" onClick={() => setSidebarOpen(false)} />}
         <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-          <div className="brand">
+          <button
+            className="brand"
+            onClick={() => go("upload")}
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", font: "inherit", color: "inherit" }}
+            aria-label="Go to home"
+          >
             <div className="logo" style={{ background: "transparent", display: "grid", placeItems: "center" }}><Logo size={30} /></div>
             <div className="name">Instagram Planner</div>
-          </div>
+          </button>
           {navItems.map((n) => (
             <button key={n.key} className={`nav-item ${view === n.key ? "active" : ""}`} onClick={() => go(n.key)}>
               {n.icon}

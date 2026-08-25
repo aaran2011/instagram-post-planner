@@ -47,12 +47,20 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
   const [driveOpen, setDriveOpen] = useState(false);
   const [driveUrl, setDriveUrl] = useState("");
   const [driveBusy, setDriveBusy] = useState(false);
+  const [driveStatus, setDriveStatus] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const media = state.media;
+  // Media already on the calendar disappears from the uploads grid (the file
+  // stays for publishing — it's just "used"). Keeps the library to new content.
+  const plannedIds = useMemo(
+    () => new Set(state.posts.flatMap((p) => (p.mediaIds && p.mediaIds.length ? p.mediaIds : [p.mediaId]))),
+    [state.posts],
+  );
+  const libraryMedia = useMemo(() => media.filter((m) => !plannedIds.has(m.id)), [media, plannedIds]);
   const filtered = useMemo(
-    () => media.filter((m) => (filter === "all" ? true : m.type === filter)),
-    [media, filter],
+    () => libraryMedia.filter((m) => (filter === "all" ? true : m.type === filter)),
+    [libraryMedia, filter],
   );
 
   const updateQ = (id: string, patch: Partial<QItem>) =>
@@ -269,28 +277,51 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
   }
 
   async function importDrive() {
-    if (!driveUrl.trim()) { toast("Paste a Google Drive folder link", "err"); return; }
-    setDriveBusy(true);
+    const url = driveUrl.trim();
+    if (!url) { toast("Paste a Google Drive folder link", "err"); return; }
+    setDriveBusy(true); setDriveStatus("Reading folder…");
     try {
-      const res = await api.post("/api/import/drive", { folderUrl: driveUrl.trim() });
-      setState(res);
+      // Loop batches so we import EVERY file in the folder (not just the first
+      // page) without timing out a single serverless call.
+      let offset = 0, imported = 0, scheduled = 0, skipped = 0, total = 0;
+      do {
+        const res = await api.post("/api/import/drive", { folderUrl: url, offset });
+        setState(res);
+        imported += res.imported || 0; scheduled += res.scheduled || 0; skipped += res.skipped || 0;
+        total = res.total || total;
+        offset = res.nextOffset ?? null;
+        setDriveStatus(`Imported ${imported}/${total || "?"}…`);
+      } while (offset != null);
+
       toast(
-        `Imported ${res.imported} file${res.imported === 1 ? "" : "s"} from Drive` +
-          (res.scheduled ? ` · scheduled ${res.scheduled} post${res.scheduled === 1 ? "" : "s"}` : "") +
-          (res.skipped ? ` · skipped ${res.skipped}` : "") + (res.note ? ` · ${res.note}` : ""),
-        res.imported ? "ok" : "err",
+        `Imported ${imported} file${imported === 1 ? "" : "s"} from Drive` +
+          (scheduled ? ` · scheduled ${scheduled} post${scheduled === 1 ? "" : "s"}` : "") +
+          (skipped ? ` · skipped ${skipped}` : ""),
+        imported ? "ok" : "err",
       );
       setDriveOpen(false); setDriveUrl("");
-      if (res.scheduled) go("calendar");
+      if (scheduled) go("calendar");
     } catch (e: any) {
       const data = e?.data;
       toast(data?.needsSetup ? (data.setup || data.error) : (e.message || "Import failed"), "err");
-    } finally { setDriveBusy(false); }
+    } finally { setDriveBusy(false); setDriveStatus(""); }
+  }
+
+  async function createCarousel() {
+    if (selected.size < 2) { toast("Select at least 2 photos for a carousel", "err"); return; }
+    const ids = Array.from(selected);
+    try {
+      const res = await api.post("/api/plan/generate", { groups: [ids] });
+      setState(res);
+      toast(`Created a carousel of ${ids.length} photos`, "ok");
+      clearSel();
+      go("calendar");
+    } catch (e: any) { toast(e.message || "Could not create carousel", "err"); }
   }
 
   async function generate() {
-    if (!media.length) return;
-    const ids = selected.size ? Array.from(selected) : media.map((m) => m.id);
+    const ids = selected.size ? Array.from(selected) : libraryMedia.map((m) => m.id);
+    if (!ids.length) return;
     setGenerating(true);
     try {
       const started = Date.now();
@@ -308,8 +339,8 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
     }
   }
 
-  const photoCount = media.filter((m) => m.type === "photo").length;
-  const videoCount = media.filter((m) => m.type === "video").length;
+  const photoCount = libraryMedia.filter((m) => m.type === "photo").length;
+  const videoCount = libraryMedia.filter((m) => m.type === "video").length;
 
   return (
     <div>
@@ -381,10 +412,10 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
       )}
 
       {/* Prominent Generate Plan call-to-action */}
-      {media.length > 0 && (
+      {libraryMedia.length > 0 && (
         <div className="card mt24" style={{ padding: 18, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", borderColor: "var(--accent)" }}>
           <div className="grow">
-            <b style={{ fontSize: 16 }}>Ready to plan {selected.size || media.length} {(selected.size || media.length) === 1 ? "item" : "items"}</b>
+            <b style={{ fontSize: 16 }}>Ready to plan {selected.size || libraryMedia.length} {(selected.size || libraryMedia.length) === 1 ? "item" : "items"}</b>
             <div className="tiny muted mt8">AI writes a caption, hashtags, and a posting time for every photo & video, then builds your Instagram grid.</div>
           </div>
           <button className="btn primary lg" onClick={generate} disabled={generating}>
@@ -394,12 +425,12 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
       )}
 
       {/* Content library */}
-      {media.length > 0 && (
+      {libraryMedia.length > 0 && (
         <div className="mt24">
           <div className="sectionhead">
             <div className="htext">
               <h1 style={{ fontSize: 22 }}>Content Library</h1>
-              <p className="muted tiny">{media.length} items · {photoCount} photos · {videoCount} videos</p>
+              <p className="muted tiny">{libraryMedia.length} items · {photoCount} photos · {videoCount} videos · items on the calendar are hidden here</p>
             </div>
             <div className="spacer" />
             <div className="toolbar">
@@ -420,6 +451,9 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
               <>
                 <span className="pill accent">{selected.size} selected</span>
                 <button className="btn sm subtle" onClick={clearSel}>Clear</button>
+                <button className="btn sm primary" onClick={createCarousel} disabled={selected.size < 2} title={selected.size < 2 ? "Select 2+ photos" : "Combine into one carousel post"}>
+                  <IconGrid size={15} /> Create Carousel
+                </button>
                 <button className="btn sm danger" onClick={deleteSelected}><IconTrash size={15} /> Delete</button>
               </>
             ) : (
@@ -467,8 +501,8 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
               <input className="input" placeholder="https://drive.google.com/drive/folders/…"
                 value={driveUrl} onChange={(e) => setDriveUrl(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") importDrive(); }} />
-              <div className="flex">
-                <div className="grow" />
+              <div className="flex" style={{ alignItems: "center" }}>
+                <div className="grow tiny muted">{driveStatus}</div>
                 <button className="btn primary" onClick={importDrive} disabled={driveBusy}>
                   {driveBusy ? <span className="spin" /> : <IconLink size={16} />} Import
                 </button>
@@ -478,10 +512,12 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
         </div>
       )}
 
-      {media.length === 0 && queue.length === 0 && (
+      {libraryMedia.length === 0 && queue.length === 0 && (
         <div className="empty mt24">
           <div className="eicon"><IconGrid /></div>
-          <p>Your library is empty. Drop some photos and videos above to begin.</p>
+          <p>{media.length
+            ? "All your uploads are on the calendar. Drop new photos and videos above to add more."
+            : "Your library is empty. Drop some photos and videos above to begin."}</p>
           {!state.instagram.connected && (
             <button className="btn subtle mt16" onClick={onConnect}>Connect Instagram first</button>
           )}

@@ -103,7 +103,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 // ------------------------------ BUILDER ------------------------------
 function ReelBuilder() {
-  const { state, go, toast } = useApp();
+  const { state, setState, go, toast } = useApp();
   const media = state.media;
   const [selected, setSelected] = useState<Set<string>>(new Set(media.map((m) => m.id)));
   const [mood, setMood] = useState<MusicMood>("cinematic");
@@ -112,7 +112,8 @@ function ReelBuilder() {
   const [status, setStatus] = useState("");
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<(RenderResult & { url: string }) | null>(null);
-  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
   const audioRef = useRef<HTMLInputElement>(null);
   const objectUrls = useRef<string[]>([]);
 
@@ -181,6 +182,29 @@ function ReelBuilder() {
     a.href = result.url; a.download = `reel.${ext}`; a.click();
   }
 
+  // One click: convert (if needed) → upload → schedule with an AUTO caption and
+  // an alternate-day time. No manual entry.
+  async function addToCalendar() {
+    if (!result) return;
+    setSaving(true);
+    try {
+      setSaveStatus("Preparing video…");
+      const mp4 = await transcodeToMp4(result.blob, {
+        onStatus: setSaveStatus, onProgress: (p) => setSaveStatus(`Converting to MP4… ${p}%`),
+      });
+      setSaveStatus("Uploading…");
+      const media = await uploadFile(mp4, Boolean(state.config.blobDirect));
+      setState((prev) => ({ ...prev, media: [media, ...prev.media] }));
+      setSaveStatus("Scheduling…");
+      const res = await api.post("/api/posts/create", { mediaIds: [media.id], format: "reel", auto: true });
+      setState(res);
+      toast("Reel added to your calendar — auto caption & alternate-day time", "ok");
+      go("calendar");
+    } catch (e: any) {
+      toast(e.message || "Could not add to calendar", "err");
+    } finally { setSaving(false); setSaveStatus(""); }
+  }
+
   if (!media.length) {
     return (
       <div className="card" style={{ padding: 24, textAlign: "center" }}>
@@ -225,21 +249,21 @@ function ReelBuilder() {
                 <p className="tiny muted mt8">The AI chose the order, pacing, motion (zoom/pan), transitions and sound. Preview on the left. Add it straight to your calendar, or regenerate for a different cut.</p>
               </div>
               <div className="flex gap8 wrap">
-                <button className="btn primary" onClick={() => setScheduleOpen(true)}><IconCalendar size={16} /> Add to Calendar</button>
-                <button className="btn subtle" onClick={generate}><IconRefresh size={15} /> Regenerate</button>
-                <button className="btn subtle" onClick={download}><IconDownload size={15} /> Download</button>
+                <button className="btn primary" onClick={addToCalendar} disabled={saving}>
+                  {saving ? <Spinner /> : <IconCalendar size={16} />} Add to Calendar
+                </button>
+                <button className="btn subtle" onClick={generate} disabled={saving}><IconRefresh size={15} /> Regenerate</button>
+                <button className="btn subtle" onClick={download} disabled={saving}><IconDownload size={15} /> Download</button>
               </div>
+              {saveStatus && <div className="tiny muted">{saveStatus}</div>}
               <p className="tiny muted" style={{ lineHeight: 1.5 }}>
-                Music is {ownAudio ? "your uploaded track" : "an original generated soundtrack"}. Instagram's trending
-                catalog can't be attached by any API — add one manually in-app if you prefer. Adding to the calendar
-                converts the video to Instagram-ready MP4 automatically.
+                Clicking Add to Calendar writes the caption and picks the time automatically (reels are spaced every
+                other day), converts the video to Instagram-ready MP4, and schedules it. Music is {ownAudio ? "your uploaded track" : "an original generated soundtrack"};
+                Instagram's trending catalog can't be attached by any API.
               </p>
             </div>
           </div>
         </div>
-        {scheduleOpen && result && (
-          <ScheduleRenderedModal result={result} onClose={() => setScheduleOpen(false)} />
-        )}
       </>
     );
   }
@@ -294,64 +318,6 @@ function ReelBuilder() {
       <div className="flex mt16">
         <div className="grow" />
         <button className="btn primary lg" onClick={generate}><IconWand size={18} /> Generate Reel</button>
-      </div>
-    </div>
-  );
-}
-
-function ScheduleRenderedModal({ result, onClose }: { result: RenderResult & { url: string }; onClose: () => void }) {
-  const { state, setState, toast, go } = useApp();
-  const [caption, setCaption] = useState("");
-  const [when, setWhen] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("");
-
-  async function schedule() {
-    if (!when) { toast("Choose a date & time", "err"); return; }
-    setBusy(true);
-    try {
-      setStatus("Preparing video…");
-      const mp4 = await transcodeToMp4(result.blob, { onStatus: setStatus, onProgress: (p) => setStatus(`Converting to MP4… ${p}%`) });
-      setStatus("Uploading…");
-      const media = await uploadFile(mp4, Boolean(state.config.blobDirect));
-      setState((prev) => ({ ...prev, media: [media, ...prev.media] }));
-      setStatus("Scheduling…");
-      const res = await api.post("/api/posts/create", {
-        mediaIds: [media.id], caption, format: "reel", scheduledAt: new Date(when).toISOString(),
-      });
-      setState(res);
-      toast("Reel added to your calendar — it will auto-post at that time", "ok");
-      onClose();
-      go("calendar");
-    } catch (e: any) {
-      toast(e.message || "Could not schedule", "err");
-    } finally { setBusy(false); setStatus(""); }
-  }
-
-  return (
-    <div className="overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" style={{ maxWidth: 460, width: "94%" }}>
-        <div className="flex" style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
-          <b className="grow">Add reel to calendar</b>
-          <button className="btn ghost sm" onClick={onClose}><IconClose size={18} /></button>
-        </div>
-        <div style={{ padding: 18 }} className="stack gap16">
-          <div className="banner"><div className="tiny">Your rendered reel (with music &amp; effects baked in) will be converted to Instagram-ready MP4, then scheduled through your existing calendar &amp; auto-poster.</div></div>
-          <label className="field">
-            <span>Caption</span>
-            <textarea className="input" rows={3} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write your caption…" />
-          </label>
-          <label className="field">
-            <span>Date &amp; time</span>
-            <input className="input" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
-          </label>
-          <div className="flex" style={{ alignItems: "center" }}>
-            <div className="grow tiny muted">{status}</div>
-            <button className="btn primary" onClick={schedule} disabled={busy}>
-              {busy ? <Spinner /> : <IconCalendar size={16} />} Add to Calendar
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
