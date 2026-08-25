@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { guard, badRequest, json, newId } from "@/lib/api";
-import { updateDb } from "@/lib/db";
+import { updateDb, readDb } from "@/lib/db";
 import { saveUpload } from "@/lib/blobstore";
 import { buildClientState } from "@/lib/state";
+import { generatePlan } from "@/lib/ai";
 import type { MediaItem, MediaType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -113,9 +114,37 @@ export async function POST(req: NextRequest) {
     } catch { skipped++; }
   }
 
+  // Automatically build a plan for the imported media and add it to the
+  // calendar (additive — appended after any existing posts), scheduled so the
+  // auto-poster publishes each at its time. No manual "Generate Plan" needed.
+  let scheduled = 0;
+  if (created.length) {
+    try {
+      const db = await readDb();
+      const startOrder = db.posts.length ? Math.max(...db.posts.map((p) => p.order)) + 1 : 0;
+      const startAfter = db.posts.length
+        ? new Date(Math.max(...db.posts.map((p) => Date.parse(p.scheduledAt))))
+        : undefined;
+      const newPosts = await generatePlan(created, db.settings, { startOrder, startAfter });
+      await updateDb((d) => {
+        d.posts = [...d.posts, ...newPosts];
+        // persist the analysis generatePlan attached to each cover item
+        for (const c of created) {
+          const m = d.media.find((x) => x.id === c.id);
+          if (m && c.analysis) m.analysis = c.analysis;
+        }
+      });
+      scheduled = newPosts.length;
+    } catch {
+      // if planning fails, the media is still imported — user can Generate Plan
+      scheduled = 0;
+    }
+  }
+
   const state = await buildClientState();
   return json({
     imported: created.length,
+    scheduled,
     skipped,
     total: media.length,
     note: media.length > MAX_FILES ? `Imported the first ${MAX_FILES} of ${media.length} files.` : undefined,

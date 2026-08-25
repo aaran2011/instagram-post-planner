@@ -276,10 +276,12 @@ export default function UploadView({ onConnect }: { onConnect: () => void }) {
       setState(res);
       toast(
         `Imported ${res.imported} file${res.imported === 1 ? "" : "s"} from Drive` +
+          (res.scheduled ? ` · scheduled ${res.scheduled} post${res.scheduled === 1 ? "" : "s"}` : "") +
           (res.skipped ? ` · skipped ${res.skipped}` : "") + (res.note ? ` · ${res.note}` : ""),
         res.imported ? "ok" : "err",
       );
       setDriveOpen(false); setDriveUrl("");
+      if (res.scheduled) go("calendar");
     } catch (e: any) {
       const data = e?.data;
       toast(data?.needsSetup ? (data.setup || data.error) : (e.message || "Import failed"), "err");
