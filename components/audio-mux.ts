@@ -90,3 +90,36 @@ export async function muxAudioIntoVideo(
 export function isAudioFile(f: File): boolean {
   return f.type.startsWith("audio/") || /\.(mp3|m4a|aac|wav|ogg)$/i.test(f.name);
 }
+
+// Transcode a rendered reel (often WebM from MediaRecorder) into an MP4/H.264
+// file Instagram accepts. This RE-ENCODES the video, so it's the slow step —
+// only used when scheduling a WebM reel to Instagram.
+export async function transcodeToMp4(input: Blob, opts: MuxOptions = {}): Promise<File> {
+  if ((input.type || "").includes("mp4")) {
+    return new File([input], "reel.mp4", { type: "video/mp4" });
+  }
+  const { fetchFile } = await import("@ffmpeg/util");
+  const inst = await getFFmpeg(opts.onStatus);
+  const onProg = ({ progress }: { progress: number }) =>
+    opts.onProgress?.(Math.max(0, Math.min(100, Math.round((progress || 0) * 100))));
+  inst.on("progress", onProg);
+
+  opts.onStatus?.("Converting to MP4 for Instagram…");
+  await inst.writeFile("in.webm", await fetchFile(input));
+  try {
+    await inst.exec([
+      "-i", "in.webm",
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "192k",
+      "-movflags", "+faststart",
+      "out.mp4",
+    ]);
+  } catch (e) {
+    inst.off?.("progress", onProg);
+    throw new Error("Couldn't convert the reel to MP4 in the browser. You can still download the reel and upload it manually.");
+  }
+  const data = await inst.readFile("out.mp4");
+  inst.off?.("progress", onProg);
+  try { await inst.deleteFile("in.webm"); await inst.deleteFile("out.mp4"); } catch {}
+  return new File([new Blob([data], { type: "video/mp4" })], "reel.mp4", { type: "video/mp4" });
+}
