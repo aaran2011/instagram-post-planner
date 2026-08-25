@@ -4,7 +4,7 @@ import { useApp, Spinner } from "../ui";
 import { api } from "../store";
 import { autoBuild } from "../reel-engine";
 import {
-  renderReel, decodeAudioFile, autoMotion, type RenderClip, type MusicMood, type RenderResult,
+  renderReel, decodeAudioFile, type RenderItem, type MusicMood, type RenderResult,
 } from "../reel-render";
 import { transcodeToMp4, isAudioFile } from "../audio-mux";
 import { uploadFile } from "../uploader";
@@ -18,7 +18,6 @@ const MOODS: { key: MusicMood; label: string }[] = [
   { key: "upbeat", label: "Upbeat" },
   { key: "calm", label: "Calm" },
 ];
-const TRANSITIONS: RenderClip["transition"][] = ["dissolve", "slide", "cut"];
 
 export default function ReelView() {
   return (
@@ -134,38 +133,33 @@ function ReelBuilder() {
     if (chosen.length < 2) { toast("Select at least 2 clips/photos", "err"); return; }
     setStage("rendering"); setProgress(0); setStatus("Planning your reel…");
     try {
-      // AI picks order/timing/pacing.
-      const sb = autoBuild(chosen, null, { maxSeconds: 24 });
-      // Fetch each clip's bytes SAME-ORIGIN (so the canvas can record without tainting).
+      // AI picks order/pacing; the renderer decides durations, transitions,
+      // motion and which shots are usable (dropping ones that don't fit).
+      const sb = autoBuild(chosen, null, { maxSeconds: 26 });
       setStatus("Loading your media…");
       cleanupUrls();
-      const clips: RenderClip[] = [];
-      for (let i = 0; i < sb.clips.length; i++) {
-        const c = sb.clips[i];
+      const renderItems: RenderItem[] = [];
+      for (const c of sb.clips) {
         const res = await fetch(`/api/media/bytes/${c.mediaId}`);
         if (!res.ok) continue;
         const url = URL.createObjectURL(await res.blob());
         objectUrls.current.push(url);
-        clips.push({
-          type: c.type, url, duration: c.duration,
-          transition: TRANSITIONS[i % TRANSITIONS.length], text: "", motion: autoMotion(i),
-        });
+        renderItems.push({ type: c.type, url });
       }
-      if (clips.length < 2) throw new Error("Couldn't load enough media");
+      if (renderItems.length < 2) throw new Error("Couldn't load enough media");
 
       const musicBuffer = ownAudio ? await decodeAudioFile(ownAudio) : null;
-      // auto-pick mood if the user hasn't (more video => upbeat)
       const useMood: MusicMood = ownAudio ? "none" : mood;
 
       if (result?.url) URL.revokeObjectURL(result.url);
-      const r = await renderReel(clips, {
+      const r = await renderReel(renderItems, {
         mood: useMood, musicBuffer, sfx: true,
         onStatus: setStatus, onProgress: setProgress,
       });
       const url = URL.createObjectURL(r.blob);
       setResult({ ...r, url });
       setStage("done");
-      toast("Reel created", "ok");
+      toast(r.dropped ? `Reel created · ${r.used} shots (${r.dropped} that didn't fit were left out)` : "Reel created", "ok");
     } catch (e: any) {
       toast(e.message || "Could not render the reel", "err");
       setStage("select");
