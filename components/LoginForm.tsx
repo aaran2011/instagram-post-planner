@@ -11,7 +11,6 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,7 +48,7 @@ export default function LoginForm() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password, currentPassword }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Could not create the account."); setLoading(false); return; }
@@ -217,20 +216,8 @@ export default function LoginForm() {
         {mode === "signup" && (
           <form onSubmit={signup} className="stack gap16">
             <p className="muted tiny">Create your account, then connect your Instagram.</p>
-            {accountExists && (
-              <div className="banner warn"><IconAlert size={16} className="bicon" />
-                <div>An account already exists on this planner. Enter its <b>current password</b> below to replace it with a new one — or use “Forgot password”.</div>
-              </div>
-            )}
-            {accountExists && (
-              <label className="field">
-                <span>Current password</span>
-                <input className="input" type="password" autoComplete="current-password" value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Existing password" />
-              </label>
-            )}
             <label className="field">
-              <span>{accountExists ? "New email" : "Email"}</span>
+              <span>Email</span>
               <input className="input" type="email" autoComplete="email" value={email}
                 onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus />
             </label>
