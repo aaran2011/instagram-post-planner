@@ -120,6 +120,9 @@ export interface EditStyle {
   notes: string; // human-readable summary of the look
 }
 
+// One account's private data. Each app account (User) owns an isolated copy —
+// its own media, posts, settings, Instagram connection and editing style — so
+// accounts never see each other's content and a new account starts blank.
 export interface Database {
   media: MediaItem[];
   posts: Post[];
@@ -132,11 +135,27 @@ export interface Database {
   secrets: {
     instagramAccessToken: string | null;
   };
-  // Auth: a self-created account (email + hashed password) stored here overrides
-  // the env credentials, plus a pending reset code. Server-only.
-  auth: {
-    email: string | null; // account email when the owner created one in-app
-    passwordHash: string | null; // scrypt "salt:hash"
-    reset: { codeHash: string; expires: number; attempts: number } | null;
-  };
+}
+
+// An app account. Multiple can exist; each maps to one Database partition.
+export interface User {
+  id: string;
+  email: string;
+  passwordHash: string | null; // scrypt "salt:hash"; null = fall back to env password
+  createdAt: string;
+}
+
+export interface ResetState {
+  codeHash: string;
+  expires: number;
+  attempts: number;
+}
+
+// The whole store: the list of accounts, each account's isolated data, and
+// per-account password-reset state. Server-only.
+export interface GlobalDB {
+  version: 2;
+  users: User[];
+  accounts: Record<string, Database>; // keyed by User.id
+  reset: Record<string, ResetState>; // keyed by User.id
 }

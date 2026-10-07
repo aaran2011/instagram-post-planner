@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { verifyCredentials } from "@/lib/auth";
 import { setSessionCookie } from "@/lib/session";
 import { badRequest, json } from "@/lib/api";
-import { config } from "@/lib/config";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   let body: any;
@@ -14,9 +15,8 @@ export async function POST(req: NextRequest) {
   const { email, password } = body || {};
   if (!email || !password) return badRequest("Email and password are required");
 
-  if (!(await verifyCredentials(String(email), String(password)))) {
-    return json({ error: "Incorrect email or password" }, 401);
-  }
-  setSessionCookie(config.appEmail, body.remember !== false);
+  const uid = await verifyCredentials(String(email), String(password));
+  if (!uid) return json({ error: "Incorrect email or password" }, 401);
+  setSessionCookie(uid, body.remember !== false);
   return json({ ok: true });
 }

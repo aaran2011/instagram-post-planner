@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { config } from "./config";
-import { readDb } from "./db";
+import { findUserByEmail, listUsers, getUser } from "./db";
 
 function safeEqual(a: string, b: string) {
   const ab = Buffer.from(a);
@@ -27,45 +27,28 @@ function verifyHash(pw: string, stored: string): boolean {
   return hb.length === test.length && crypto.timingSafeEqual(hb, test);
 }
 
-// Single-user credential check. The valid email is the DB-stored account email
-// (if the owner created one in-app), otherwise APP_EMAIL. The password matches
-// the DB-stored hash if present, otherwise the APP_PASSWORD env value.
-export async function verifyCredentials(email: string, password: string): Promise<boolean> {
-  let validEmail = config.appEmail;
-  let hash: string | null = null;
-  // If the DB is unavailable, fall back to the env credentials so a storage
-  // outage can't lock the owner out (and login returns a clean result).
-  try {
-    const db = await readDb();
-    if (db.auth.email) validEmail = db.auth.email;
-    hash = db.auth.passwordHash;
-  } catch {
-    // storage unavailable — use env credentials
-  }
-  const emailOk = safeEqual((email || "").trim().toLowerCase(), validEmail.trim().toLowerCase());
-  if (!emailOk) return false;
-  if (hash) return verifyHash(password || "", hash);
-  return safeEqual(password || "", config.appPassword);
+// Verify credentials against the matching account. Returns the account's user
+// id on success, or null. A user with no stored hash (the migrated/first-run
+// account) falls back to the APP_PASSWORD env value so the owner isn't locked
+// out before setting a password.
+export async function verifyCredentials(email: string, password: string): Promise<string | null> {
+  const user = await findUserByEmail(email).catch(() => null);
+  if (!user) return null;
+  if (user.passwordHash) return verifyHash(password || "", user.passwordHash) ? user.id : null;
+  // legacy/first-run account without a stored hash → env password
+  return safeEqual(password || "", config.appPassword) ? user.id : null;
 }
 
-// Has the owner already created an in-app account? Once true, signup is locked.
+// Does any account exist yet? (Drives the sign-in page copy.)
 export async function accountExists(): Promise<boolean> {
-  try {
-    const db = await readDb();
-    return Boolean(db.auth.passwordHash);
-  } catch {
-    return false;
-  }
+  try { return (await listUsers()).length > 0; } catch { return false; }
 }
 
-// The account email to show / email reset codes to.
-export async function resolvedAccountEmail(): Promise<string> {
-  try {
-    const db = await readDb();
-    return db.auth.email || config.appEmail;
-  } catch {
-    return config.appEmail;
-  }
+// The email of the signed-in account (for the session endpoint); "" if none.
+export async function accountEmailFor(uid: string | null): Promise<string> {
+  if (!uid) return "";
+  const u = await getUser(uid).catch(() => null);
+  return u?.email || "";
 }
 
 // --- Reset code helpers ---

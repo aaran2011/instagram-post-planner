@@ -1,14 +1,15 @@
 import { NextRequest } from "next/server";
 import { badRequest, json } from "@/lib/api";
-import { updateDb } from "@/lib/db";
+import { createUser, findUserByEmail } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { setSessionCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// Create the single owner account (email + password), then sign in. Open by the
-// owner's choice: no current password required — creating an account sets (or
-// replaces) the stored credentials. (This is a personal single-user app.)
+// Create a NEW account and sign in. Each account is fully isolated — the new
+// one starts blank (no Instagram connected, no media/posts). Open by design for
+// this personal app: no current password required. An email already in use is
+// rejected (log in instead) so existing accounts aren't clobbered.
 export async function POST(req: NextRequest) {
   let body: any;
   try { body = await req.json(); } catch { return badRequest("Invalid body"); }
@@ -19,15 +20,14 @@ export async function POST(req: NextRequest) {
   if (password.length < 6) return badRequest("Password must be at least 6 characters.");
 
   try {
-    await updateDb((d) => {
-      d.auth.email = email;
-      d.auth.passwordHash = hashPassword(password);
-      d.auth.reset = null;
-    });
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      return json({ error: "An account with that email already exists. Log in instead." }, 409);
+    }
+    const user = await createUser(email, hashPassword(password));
+    setSessionCookie(user.id, true);
+    return json({ ok: true });
   } catch {
     return json({ error: "Storage is unavailable right now — try again in a moment." }, 503);
   }
-
-  setSessionCookie(email, true);
-  return json({ ok: true });
 }

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import fs from "fs";
 import fsp from "fs/promises";
 import { Readable } from "stream";
-import { readDb } from "@/lib/db";
+import { findMediaGlobal } from "@/lib/db";
 import { uploadPath } from "@/lib/paths";
 
 // Node Readable -> Web ReadableStream so Next's Response streams it correctly.
@@ -16,8 +16,7 @@ export const dynamic = "force-dynamic";
 // for Instagram to fetch the file). Intentionally not session-gated so <img>,
 // <video> and Instagram's fetcher can load it.
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const db = await readDb();
-  const media = db.media.find((m) => m.id === params.id);
+  const media = await findMediaGlobal(params.id);
   if (!media) return new Response("Not found", { status: 404 });
 
   // Blob mode: media lives on a public CDN — redirect there.

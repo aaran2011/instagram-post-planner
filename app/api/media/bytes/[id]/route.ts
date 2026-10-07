@@ -3,7 +3,7 @@ import fs from "fs";
 import fsp from "fs/promises";
 import { Readable } from "stream";
 import { guard } from "@/lib/api";
-import { readDb } from "@/lib/db";
+import { findMediaGlobal } from "@/lib/db";
 import { uploadPath } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const denied = guard();
   if (denied) return denied;
 
-  const db = await readDb();
-  const media = db.media.find((m) => m.id === params.id);
+  const media = await findMediaGlobal(params.id);
   if (!media) return new Response("Not found", { status: 404 });
 
   // Blob mode: fetch the CDN file server-side and pass the bytes back same-origin.

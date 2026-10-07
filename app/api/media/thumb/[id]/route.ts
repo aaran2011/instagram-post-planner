@@ -1,13 +1,12 @@
 import fsp from "fs/promises";
-import { readDb } from "@/lib/db";
+import { findMediaGlobal } from "@/lib/db";
 import { thumbPath, uploadPath } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
 
 // Serves the small jpeg thumbnail; falls back to the original for photos.
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const db = await readDb();
-  const media = db.media.find((m) => m.id === params.id);
+  const media = await findMediaGlobal(params.id);
   if (!media) return new Response("Not found", { status: 404 });
 
   // Blob mode: redirect to the CDN thumbnail (or the file itself).
