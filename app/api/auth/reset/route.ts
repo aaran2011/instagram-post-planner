@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { json, badRequest } from "@/lib/api";
-import { config } from "@/lib/config";
 import { readDb, updateDb } from "@/lib/db";
-import { hashCode, hashPassword } from "@/lib/auth";
+import { hashCode, hashPassword, resolvedAccountEmail } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +18,7 @@ export async function POST(req: NextRequest) {
   const code = String(body?.code || "").trim();
   const newPassword = String(body?.newPassword || "");
 
-  if (email !== config.appEmail.trim().toLowerCase()) return badRequest("Invalid email.");
+  if (email !== (await resolvedAccountEmail()).trim().toLowerCase()) return badRequest("Invalid email.");
   if (newPassword.length < 6) return badRequest("Password must be at least 6 characters.");
 
   const db = await readDb();

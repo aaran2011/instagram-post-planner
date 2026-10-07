@@ -35,6 +35,7 @@ function withDefaults(parsed: Partial<Database> | null): Database {
     editStyle: p.editStyle ?? null,
     secrets: { instagramAccessToken: null, ...(p.secrets ?? {}) },
     auth: {
+      email: p.auth?.email ?? null,
       passwordHash: p.auth?.passwordHash ?? null,
       reset: p.auth?.reset ?? null,
     },

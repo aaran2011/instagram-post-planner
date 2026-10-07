@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { json, badRequest } from "@/lib/api";
-import { config } from "@/lib/config";
 import { readDb, updateDb } from "@/lib/db";
-import { makeCode, hashCode } from "@/lib/auth";
+import { makeCode, hashCode, resolvedAccountEmail } from "@/lib/auth";
 import { sendResetCode, emailConfigured } from "@/lib/mailer";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +16,8 @@ export async function POST(req: NextRequest) {
     return badRequest("Invalid body");
   }
   const email = String(body?.email || "").trim().toLowerCase();
-  const match = email === config.appEmail.trim().toLowerCase();
+  const accountEmail = (await resolvedAccountEmail()).trim().toLowerCase();
+  const match = email === accountEmail;
 
   if (!emailConfigured()) {
     return json(
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
         };
       });
       try {
-        await sendResetCode(config.appEmail, code);
+        await sendResetCode(accountEmail, code);
       } catch (e: any) {
         return json({ error: e?.message || "Could not send the reset email." }, 502);
       }

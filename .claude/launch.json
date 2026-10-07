@@ -31,6 +31,107 @@
         "dev"
       ],
       "port": 4400
+    },
+    {
+      "name": "compound",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "compound-app",
+        "run",
+        "dev"
+      ],
+      "port": 4500
+    },
+    {
+      "name": "rizz",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "rizz/web",
+        "run",
+        "dev"
+      ],
+      "port": 4700
+    },
+    {
+      "name": "wonderful-world",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "wonderful-world",
+        "run",
+        "dev"
+      ],
+      "port": 4600
+    },
+    {
+      "name": "jarvis",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "jarvis",
+        "run",
+        "dev"
+      ],
+      "port": 4800
+    },
+    {
+      "name": "business",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "international-business",
+        "run",
+        "dev"
+      ],
+      "port": 4600
+    },
+    {
+      "name": "where2wear",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "clothesplanner-app",
+        "run",
+        "dev:local"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "business-offline",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--port",
+        "4611",
+        "--strictPort"
+      ],
+      "cwd": "international-business",
+      "port": 4611
+    },
+    {
+      "name": "pov",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "pov-app",
+        "run",
+        "dev"
+      ],
+      "port": 4900
+    },
+    {
+      "name": "my-year",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "my-year",
+        "run",
+        "dev"
+      ],
+      "port": 4950
     }
   ]
 }

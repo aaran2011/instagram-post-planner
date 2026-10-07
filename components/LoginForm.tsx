@@ -3,13 +3,14 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconAlert, IconCheck } from "./icons";
 
-type Mode = "login" | "reset-request" | "reset-verify" | "reset-done";
+type Mode = "login" | "signup" | "reset-request" | "reset-verify" | "reset-done";
 
 export default function LoginForm() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,6 +18,7 @@ export default function LoginForm() {
   const [remember, setRemember] = useState(true);
   const [usingDefaults, setUsingDefaults] = useState(false);
   const [accountEmail, setAccountEmail] = useState<string>("");
+  const [accountExists, setAccountExists] = useState(true);
   const [emailConfigured, setEmailConfigured] = useState(true);
 
   // reset flow fields
@@ -29,11 +31,34 @@ export default function LoginForm() {
       .then((d) => {
         if (d.authenticated) router.replace("/");
         if (d.email) setAccountEmail(d.email);
+        if (typeof d.accountExists === "boolean") setAccountExists(d.accountExists);
         if (d.config?.defaultCredentials) setUsingDefaults(true);
         if (d.config && typeof d.config.email === "boolean") setEmailConfigured(d.config.email);
       })
       .catch(() => {});
   }, [router]);
+
+  async function signup(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (password !== confirm) { setError("Passwords don't match."); return; }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Could not create the account."); setLoading(false); return; }
+      // Account created + signed in → go set up the Instagram connection.
+      router.replace("/?connect=1");
+    } catch {
+      setError("Network error. Is the server running?");
+      setLoading(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -172,12 +197,51 @@ export default function LoginForm() {
               </button>
             </form>
 
-            {failedCount >= 2 && (
-              <div className="center mt16">
+            <div className="center mt16" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div className="tiny muted">
+                {accountExists ? "Need a different account?" : "First time here?"}{" "}
+                <button className="btn ghost sm" style={{ padding: "2px 6px" }}
+                  onClick={() => { setMode("signup"); setError(null); setPassword(""); setConfirm(""); }}>
+                  Create a new account
+                </button>
+              </div>
+              {failedCount >= 2 && (
                 <button className="btn ghost sm" onClick={startReset}>Forgot password?</button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ---- SIGN UP ---- */}
+        {mode === "signup" && (
+          <form onSubmit={signup} className="stack gap16">
+            <p className="muted tiny">Create your account, then connect your Instagram.</p>
+            {accountExists && (
+              <div className="banner warn"><IconAlert size={16} className="bicon" />
+                <div>An account already exists on this planner. Creating one here will be refused — log in or reset the password instead.</div>
               </div>
             )}
-          </>
+            <label className="field">
+              <span>Email</span>
+              <input className="input" type="email" autoComplete="email" value={email}
+                onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input className="input" type="password" autoComplete="new-password" value={password}
+                onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" />
+            </label>
+            <label className="field">
+              <span>Confirm password</span>
+              <input className="input" type="password" autoComplete="new-password" value={confirm}
+                onChange={(e) => setConfirm(e.target.value)} placeholder="Re-enter your password" />
+            </label>
+            {errorBox}
+            <button className="btn primary lg block" disabled={loading} type="submit">
+              {loading ? <span className="spin" /> : "Create account"}
+            </button>
+            <button type="button" className="btn ghost sm" onClick={() => { setMode("login"); setError(null); }}>Back to login</button>
+          </form>
         )}
 
         {/* ---- RESET: request code ---- */}

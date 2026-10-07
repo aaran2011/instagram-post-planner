@@ -49,7 +49,8 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
     }
   }, [router]);
 
-  // Surface OAuth callback results from the URL (?connected / ?error).
+  // Surface OAuth callback results from the URL (?connected / ?error), and open
+  // the Connect modal right after account creation (?connect=1).
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get("connected")) {
@@ -59,8 +60,11 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
     } else if (p.get("error")) {
       toast(decodeURIComponent(p.get("error")!), "err");
       window.history.replaceState({}, "", "/");
+    } else if (p.get("connect")) {
+      if (!initial.instagram.connected) setConnectOpen(true);
+      window.history.replaceState({}, "", "/");
     }
-  }, [toast, refresh]);
+  }, [toast, refresh, initial.instagram.connected]);
 
   // Lightweight scheduler heartbeat so due posts publish while the app is open.
   useEffect(() => {

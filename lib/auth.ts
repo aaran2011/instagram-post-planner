@@ -27,25 +27,45 @@ function verifyHash(pw: string, stored: string): boolean {
   return hb.length === test.length && crypto.timingSafeEqual(hb, test);
 }
 
-// Single-user credential check. Email must match; password matches either the
-// DB-stored (reset) hash if present, otherwise the APP_PASSWORD env value.
+// Single-user credential check. The valid email is the DB-stored account email
+// (if the owner created one in-app), otherwise APP_EMAIL. The password matches
+// the DB-stored hash if present, otherwise the APP_PASSWORD env value.
 export async function verifyCredentials(email: string, password: string): Promise<boolean> {
-  const emailOk = safeEqual(
-    (email || "").trim().toLowerCase(),
-    config.appEmail.trim().toLowerCase(),
-  );
-  if (!emailOk) return false;
-
-  // If the DB is reachable and a reset password is set, use it. If the DB is
-  // unavailable, fall back to the env password so a storage outage can't lock
-  // the owner out (and login returns a clean result instead of a 500).
+  let validEmail = config.appEmail;
+  let hash: string | null = null;
+  // If the DB is unavailable, fall back to the env credentials so a storage
+  // outage can't lock the owner out (and login returns a clean result).
   try {
     const db = await readDb();
-    if (db.auth.passwordHash) return verifyHash(password || "", db.auth.passwordHash);
+    if (db.auth.email) validEmail = db.auth.email;
+    hash = db.auth.passwordHash;
   } catch {
-    // storage unavailable — fall through to env comparison
+    // storage unavailable — use env credentials
   }
+  const emailOk = safeEqual((email || "").trim().toLowerCase(), validEmail.trim().toLowerCase());
+  if (!emailOk) return false;
+  if (hash) return verifyHash(password || "", hash);
   return safeEqual(password || "", config.appPassword);
+}
+
+// Has the owner already created an in-app account? Once true, signup is locked.
+export async function accountExists(): Promise<boolean> {
+  try {
+    const db = await readDb();
+    return Boolean(db.auth.passwordHash);
+  } catch {
+    return false;
+  }
+}
+
+// The account email to show / email reset codes to.
+export async function resolvedAccountEmail(): Promise<string> {
+  try {
+    const db = await readDb();
+    return db.auth.email || config.appEmail;
+  } catch {
+    return config.appEmail;
+  }
 }
 
 // --- Reset code helpers ---

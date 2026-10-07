@@ -16,7 +16,24 @@ clothesplanner-app
 light-it
 fitness-app
 ready-app
-.claude/settings.local.json
+compound-app
+wonderful-world
+.claude/settings.local.json*
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Jarvis has its own repository
+jarvis
+
+# Rizz has its own repository
+rizz/
+
+# International Business has its own repository
+international-business/
+
+# POV has its own repository
+pov-app/
+
+# My Year has its own repository
+my-year/
