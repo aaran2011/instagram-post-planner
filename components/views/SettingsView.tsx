@@ -54,6 +54,18 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
     }
   }
 
+  async function deleteAccount() {
+    if (!confirm("Delete THIS account? This permanently removes this account's photos, posts, plan and its Instagram connection — only this account, nothing else. This can't be undone.")) return;
+    if (!confirm("Are you sure? This account and all its content will be gone.")) return;
+    try {
+      const res = await fetch("/api/auth/delete-account", { method: "POST" });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); toast(d.error || "Could not delete the account", "err"); return; }
+      window.location.href = "/login";
+    } catch (e: any) {
+      toast(e.message || "Could not delete the account", "err");
+    }
+  }
+
   async function disconnect() {
     if (!confirm("Disconnect Instagram?")) return;
     try {
@@ -200,6 +212,18 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
           <ConfigRow ok={state.config.ai} label="AI (ANTHROPIC_API_KEY)" okText="Configured" noText="Using demo content engine" />
           <ConfigRow ok={state.config.instagram} label="Instagram API" okText={state.config.instagramOAuth ? "OAuth configured" : "Manual token configured"} noText="Not configured — connect via demo" />
           <ConfigRow ok={!state.config.defaultSessionSecret} label="SESSION_SECRET" okText="Set" noText="Using insecure default — set for production" warn />
+        </div>
+      </div>
+
+      {/* Danger zone: delete this account */}
+      <div className="card" style={{ padding: 22, borderColor: "var(--danger)" }}>
+        <div className="flex gap8 mb16"><IconTrash size={18} /><b>Delete account</b></div>
+        <div className="flex gap12 wrap">
+          <div className="grow muted tiny">
+            Permanently deletes <b>this account only</b> — its photos, posts, plan and its Instagram connection.
+            Other accounts are not affected, and your actual Instagram account is left untouched. This can't be undone.
+          </div>
+          <button className="btn danger" onClick={deleteAccount}><IconTrash size={15} /> Delete this account</button>
         </div>
       </div>
     </div>

@@ -192,6 +192,26 @@ export async function setUserPassword(uid: string, passwordHash: string): Promis
   });
 }
 
+// The resolved account id for the current session (handles legacy email subs).
+export async function currentAccountId(): Promise<string | null> {
+  const g = await loadGlobal();
+  return resolveUid(g, currentUserId());
+}
+
+// Delete ONE account entirely — its user, its isolated data (media/posts/
+// Instagram connection/token/editing style) and its reset state. Other accounts
+// are untouched. Returns the removed account's data so the caller can clean up
+// its stored media files.
+export async function deleteUser(uid: string): Promise<Database | null> {
+  return updateGlobal((g) => {
+    const acc = g.accounts[uid] ?? null;
+    g.users = g.users.filter((u) => u.id !== uid);
+    delete g.accounts[uid];
+    delete g.reset[uid];
+    return acc;
+  });
+}
+
 // ---- reset state (per user) ----
 
 export async function getReset(uid: string): Promise<ResetState | null> {
