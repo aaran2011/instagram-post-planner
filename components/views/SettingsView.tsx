@@ -59,11 +59,17 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
     if (!confirm("Are you sure? This account and all its content will be gone.")) return;
     try {
       const res = await fetch("/api/auth/delete-account", { method: "POST" });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); toast(d.error || "Could not delete the account", "err"); return; }
-      window.location.href = "/login";
-    } catch (e: any) {
-      toast(e.message || "Could not delete the account", "err");
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast(d.error || "Could not delete the account", "err");
+        return;
+      }
+    } catch {
+      // Even if the response is flaky, the account is being deleted + signed
+      // out server-side — send the user to the login page regardless.
     }
+    // Always land on the login page (replace so Back can't return to the app).
+    window.location.replace("/login");
   }
 
   async function disconnect() {
