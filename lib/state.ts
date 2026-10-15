@@ -36,6 +36,16 @@ export async function buildClientState() {
     posts: db.posts.slice().sort((a, b) => a.order - b.order),
     settings: db.settings,
     instagram: db.instagram,
+    linkedin: db.linkedin,
+    youtube: db.youtube,
+    // Sanitized cross-post state (no secrets; recent log only).
+    crossPost: {
+      enabled: db.crossPost.enabled,
+      destinations: db.crossPost.destinations,
+      baselineAt: db.crossPost.baselineAt,
+      lastSyncAt: db.crossPost.lastSyncAt,
+      log: db.crossPost.log.slice(0, 20),
+    },
     editStyle: db.editStyle ?? null,
     config: configStatus(),
     limitations: IG_LIMITATIONS,

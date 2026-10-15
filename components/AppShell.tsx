@@ -53,8 +53,10 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
   // the Connect modal right after account creation (?connect=1).
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    if (p.get("connected")) {
-      toast("Instagram connected", "ok");
+    const connected = p.get("connected");
+    if (connected) {
+      const label = connected === "youtube" ? "YouTube" : connected === "linkedin" ? "LinkedIn" : "Instagram";
+      toast(`${label} connected`, "ok");
       refresh();
       window.history.replaceState({}, "", "/");
     } else if (p.get("error")) {

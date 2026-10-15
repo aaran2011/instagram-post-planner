@@ -96,6 +96,12 @@ export const IconEye = (p: P) => (
 export const IconLink = (p: P) => (
   <S {...p}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></S>
 );
+export const IconLinkedIn = (p: P) => (
+  <S {...p}><rect x="2" y="2" width="20" height="20" rx="4" /><path d="M7 10v7M7 7v.01M11 17v-4a2 2 0 0 1 4 0v4M11 17v-7" /></S>
+);
+export const IconYouTube = (p: P) => (
+  <S {...p}><rect x="2" y="5" width="20" height="14" rx="4" /><path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none" /></S>
+);
 export const IconWand = (p: P) => (
   <S {...p}><path d="m15 4 5 5" /><path d="M20 4 4 20" /><path d="M9 6h.01M6 3h.01M18 15h.01M15 18h.01" /></S>
 );

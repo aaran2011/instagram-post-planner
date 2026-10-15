@@ -2,7 +2,10 @@ import { loadRaw, saveRaw } from "./kvstore";
 import { getSession } from "./session";
 import { config } from "./config";
 import { newId } from "./api";
-import type { Database, GlobalDB, Settings, InstagramAccount, User, ResetState, MediaItem } from "./types";
+import type {
+  Database, GlobalDB, Settings, InstagramAccount, LinkedInAccount, YouTubeAccount,
+  CrossPostState, User, ResetState, MediaItem,
+} from "./types";
 
 // Multi-account store over a pluggable backend (Upstash Redis in prod, JSON file
 // in dev — see kvstore.ts). The whole GlobalDB lives at one key; each app
@@ -23,15 +26,33 @@ const DEFAULT_SETTINGS: Settings = {
 const DEFAULT_INSTAGRAM: InstagramAccount = {
   connected: false, username: null, igUserId: null, accountType: null, connectedAt: null, demo: false,
 };
+const DEFAULT_LINKEDIN: LinkedInAccount = {
+  connected: false, name: null, memberId: null, connectedAt: null,
+};
+const DEFAULT_YOUTUBE: YouTubeAccount = {
+  connected: false, channelTitle: null, channelId: null, connectedAt: null,
+};
+const DEFAULT_CROSSPOST: CrossPostState = {
+  enabled: false,
+  destinations: { linkedin: true, youtube: true },
+  repostedIgIds: [], log: [], baselineAt: null, lastSyncAt: null,
+};
+const DEFAULT_SECRETS = {
+  instagramAccessToken: null, linkedinAccessToken: null, linkedinExpiresAt: null,
+  youtubeAccessToken: null, youtubeRefreshToken: null, youtubeExpiresAt: null,
+};
 
-// A fresh, empty account — what every new sign-up gets (no Instagram, no media).
+// A fresh, empty account — what every new sign-up gets (no connections, no media).
 export function blankAccount(): Database {
   return {
     media: [], posts: [],
     settings: { ...DEFAULT_SETTINGS },
     instagram: { ...DEFAULT_INSTAGRAM },
+    linkedin: { ...DEFAULT_LINKEDIN },
+    youtube: { ...DEFAULT_YOUTUBE },
+    crossPost: { ...DEFAULT_CROSSPOST, destinations: { ...DEFAULT_CROSSPOST.destinations }, repostedIgIds: [], log: [] },
     editStyle: null,
-    secrets: { instagramAccessToken: null },
+    secrets: { ...DEFAULT_SECRETS },
   };
 }
 
@@ -42,8 +63,17 @@ function withAccountDefaults(p: Partial<Database> | null | undefined): Database 
     posts: d.posts ?? [],
     settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}) },
     instagram: { ...DEFAULT_INSTAGRAM, ...(d.instagram ?? {}) },
+    linkedin: { ...DEFAULT_LINKEDIN, ...(d.linkedin ?? {}) },
+    youtube: { ...DEFAULT_YOUTUBE, ...(d.youtube ?? {}) },
+    crossPost: {
+      ...DEFAULT_CROSSPOST,
+      ...(d.crossPost ?? {}),
+      destinations: { ...DEFAULT_CROSSPOST.destinations, ...(d.crossPost?.destinations ?? {}) },
+      repostedIgIds: d.crossPost?.repostedIgIds ?? [],
+      log: d.crossPost?.log ?? [],
+    },
     editStyle: d.editStyle ?? null,
-    secrets: { instagramAccessToken: null, ...(d.secrets ?? {}) },
+    secrets: { ...DEFAULT_SECRETS, ...(d.secrets ?? {}) },
   };
 }
 
@@ -225,6 +255,12 @@ export async function setReset(uid: string, state: ResetState | null): Promise<v
 
 export function publicInstagram(db: Database): InstagramAccount {
   return { ...db.instagram };
+}
+export function publicLinkedIn(db: Database): LinkedInAccount {
+  return { ...db.linkedin };
+}
+export function publicYouTube(db: Database): YouTubeAccount {
+  return { ...db.youtube };
 }
 
 export { DEFAULT_SETTINGS };

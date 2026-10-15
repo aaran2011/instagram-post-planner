@@ -29,6 +29,20 @@ export const config = {
     manualToken: process.env.IG_ACCESS_TOKEN || "",
     manualUserId: process.env.IG_USER_ID || "",
   },
+
+  // Google OAuth client for uploading to YouTube (reuses the Google Cloud
+  // project; GOOGLE_API_KEY for Drive import is a separate credential).
+  google: {
+    clientId: process.env.GOOGLE_OAUTH_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || "",
+    redirectUri: process.env.YOUTUBE_REDIRECT_URI || "http://localhost:4321/api/connect/youtube/callback",
+  },
+
+  linkedin: {
+    clientId: process.env.LINKEDIN_CLIENT_ID || "",
+    clientSecret: process.env.LINKEDIN_CLIENT_SECRET || "",
+    redirectUri: process.env.LINKEDIN_REDIRECT_URI || "http://localhost:4321/api/connect/linkedin/callback",
+  },
 };
 
 export function aiConfigured() {
@@ -45,6 +59,13 @@ export function usingDefaultSecret() {
   return !process.env.SESSION_SECRET;
 }
 
+export function youtubeConfigured() {
+  return Boolean(config.google.clientId && config.google.clientSecret);
+}
+export function linkedinConfigured() {
+  return Boolean(config.linkedin.clientId && config.linkedin.clientSecret);
+}
+
 // A client-safe summary of what still needs configuring.
 export function configStatus() {
   return {
@@ -52,6 +73,8 @@ export function configStatus() {
     instagram: instagramConfigured(),
     instagramOAuth: Boolean(config.ig.appId && config.ig.appSecret),
     instagramManualToken: Boolean(config.ig.manualToken),
+    youtubeOAuth: youtubeConfigured(),
+    linkedinOAuth: linkedinConfigured(),
     email: Boolean(process.env.RESEND_API_KEY),
     // When Vercel Blob is configured, the browser uploads files directly to it
     // (bypasses the serverless request-size limit for large photos/videos).

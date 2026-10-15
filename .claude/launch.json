@@ -132,6 +132,17 @@
         "dev"
       ],
       "port": 4950
+    },
+    {
+      "name": "one-year",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "one-year",
+        "run",
+        "dev"
+      ],
+      "port": 4960
     }
   ]
 }

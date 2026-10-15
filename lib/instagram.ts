@@ -363,6 +363,46 @@ export async function fetchReelHistory(accessToken: string, igUserId: string): P
   return { reels, metricsLevel, count: reels.length };
 }
 
+// ---- Full media list (for cross-posting) ----
+// Unlike fetchReelHistory, this requests media_url + carousel children so we can
+// download the actual bytes and repost them. media_url/children URLs are
+// time-limited CDN links — fetch bytes promptly.
+export interface IgMediaItem {
+  id: string;
+  caption: string;
+  mediaType: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  productType: string | null;
+  mediaUrl: string | null;
+  permalink: string | null;
+  timestamp: string | null; // ISO
+  children: { id: string; mediaType: "IMAGE" | "VIDEO"; mediaUrl: string | null }[];
+}
+
+export async function fetchRecentMedia(
+  accessToken: string, igUserId: string, limit = 25,
+): Promise<IgMediaItem[]> {
+  const res = await graphGet(`/${igUserId}/media`, {
+    access_token: accessToken,
+    fields:
+      "id,caption,media_type,media_product_type,permalink,timestamp,media_url," +
+      "children{id,media_type,media_url}",
+    limit: String(limit),
+  });
+  const data: any[] = Array.isArray(res?.data) ? res.data : [];
+  return data.map((m) => ({
+    id: String(m.id),
+    caption: String(m.caption || ""),
+    mediaType: (m.media_type as IgMediaItem["mediaType"]) || "IMAGE",
+    productType: m.media_product_type ?? null,
+    mediaUrl: m.media_url ?? null,
+    permalink: m.permalink ?? null,
+    timestamp: m.timestamp ?? null,
+    children: Array.isArray(m.children?.data)
+      ? m.children.data.map((c: any) => ({ id: String(c.id), mediaType: c.media_type, mediaUrl: c.media_url ?? null }))
+      : [],
+  }));
+}
+
 async function waitForContainer(containerId: string, accessToken: string) {
   for (let i = 0; i < 20; i++) {
     const status = await graphGet(`/${containerId}`, {

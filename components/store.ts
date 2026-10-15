@@ -1,8 +1,21 @@
 import type {
-  Post, Settings, InstagramAccount, MediaAnalysis, EditStyle, EditAdjustments,
+  Post, Settings, InstagramAccount, LinkedInAccount, YouTubeAccount, CrossPostLogEntry,
+  CrossPostDestination, MediaAnalysis, EditStyle, EditAdjustments,
 } from "@/lib/types";
 
-export type { Post, Settings, InstagramAccount, MediaAnalysis, EditStyle, EditAdjustments };
+export type {
+  Post, Settings, InstagramAccount, LinkedInAccount, YouTubeAccount, CrossPostLogEntry,
+  CrossPostDestination, MediaAnalysis, EditStyle, EditAdjustments,
+};
+
+// Sanitized cross-post state the client sees (no secrets, trimmed log).
+export interface ClientCrossPost {
+  enabled: boolean;
+  destinations: Record<CrossPostDestination, boolean>;
+  baselineAt: string | null;
+  lastSyncAt: string | null;
+  log: CrossPostLogEntry[];
+}
 
 export interface ClientMedia {
   id: string;
@@ -24,6 +37,8 @@ export interface ConfigStatus {
   instagram: boolean;
   instagramOAuth: boolean;
   instagramManualToken: boolean;
+  youtubeOAuth?: boolean;
+  linkedinOAuth?: boolean;
   defaultCredentials: boolean;
   defaultSessionSecret: boolean;
   email?: boolean;
@@ -35,6 +50,9 @@ export interface ClientState {
   posts: Post[];
   settings: Settings;
   instagram: InstagramAccount;
+  linkedin: LinkedInAccount;
+  youtube: YouTubeAccount;
+  crossPost: ClientCrossPost;
   editStyle: EditStyle | null;
   config: ConfigStatus;
   limitations: Record<string, string>;

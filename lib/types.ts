@@ -120,6 +120,43 @@ export interface EditStyle {
   notes: string; // human-readable summary of the look
 }
 
+// Connected destination accounts for cross-posting (public, token-free — safe
+// for client state, like InstagramAccount). Tokens live in `secrets`.
+export interface LinkedInAccount {
+  connected: boolean;
+  name: string | null; // from /v2/userinfo
+  memberId: string | null; // OIDC "sub"; author URN = urn:li:person:{memberId}
+  connectedAt: string | null;
+}
+
+export interface YouTubeAccount {
+  connected: boolean;
+  channelTitle: string | null;
+  channelId: string | null;
+  connectedAt: string | null;
+}
+
+export type CrossPostDestination = "linkedin" | "youtube";
+
+export interface CrossPostLogEntry {
+  igId: string;
+  at: string; // ISO
+  caption?: string;
+  linkedin?: { ok: boolean; id?: string; error?: string; skipped?: string };
+  youtube?: { ok: boolean; id?: string; error?: string; skipped?: string };
+}
+
+// Auto-repost state: which Instagram media have already been handled, plus a
+// baseline so existing history is never backfilled.
+export interface CrossPostState {
+  enabled: boolean;
+  destinations: Record<CrossPostDestination, boolean>;
+  repostedIgIds: string[]; // dedup: IG media ids already handled
+  log: CrossPostLogEntry[]; // recent activity (capped)
+  baselineAt: string | null; // only media newer than this is reposted
+  lastSyncAt: string | null; // throttle marker
+}
+
 // One account's private data. Each app account (User) owns an isolated copy —
 // its own media, posts, settings, Instagram connection and editing style — so
 // accounts never see each other's content and a new account starts blank.
@@ -128,12 +165,20 @@ export interface Database {
   posts: Post[];
   settings: Settings;
   instagram: InstagramAccount;
+  linkedin: LinkedInAccount;
+  youtube: YouTubeAccount;
+  crossPost: CrossPostState;
   // The user's personal editing style, learned from before/after pairs. Null
   // until trained. Applied automatically to future edits.
   editStyle?: EditStyle | null;
   // Server-only secret material. Never serialized to any client response.
   secrets: {
     instagramAccessToken: string | null;
+    linkedinAccessToken: string | null;
+    linkedinExpiresAt: number | null; // epoch ms
+    youtubeAccessToken: string | null;
+    youtubeRefreshToken: string | null; // durable credential
+    youtubeExpiresAt: number | null; // epoch ms for the access token
   };
 }
 

@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useApp, Spinner } from "../ui";
 import { api } from "../store";
 import { tzListWith } from "../tz";
-import { IconInstagram, IconCheck, IconAlert, IconPlus, IconClose, IconSparkle, IconWand, IconTrash } from "../icons";
+import { IconInstagram, IconCheck, IconAlert, IconPlus, IconClose, IconSparkle, IconWand, IconTrash, IconLinkedIn, IconYouTube } from "../icons";
 
 export default function SettingsView({ onConnect }: { onConnect: () => void }) {
   const { state, setState, toast, go } = useApp();
@@ -17,6 +17,9 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
   const [newTime, setNewTime] = useState("");
   const [saving, setSaving] = useState(false);
   const ig = state.instagram;
+  const li = state.linkedin;
+  const yt = state.youtube;
+  const cp = state.crossPost;
 
   async function save() {
     setSaving(true);
@@ -89,6 +92,26 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
     setNewTime("");
   }
 
+  async function disconnectProvider(kind: "linkedin" | "youtube") {
+    if (!confirm(`Disconnect ${kind === "linkedin" ? "LinkedIn" : "YouTube"}? Auto-reposting to it will stop.`)) return;
+    try {
+      await api.post(`/api/connect/${kind}/disconnect`);
+      setState((prev) => ({
+        ...prev,
+        linkedin: kind === "linkedin" ? { connected: false, name: null, memberId: null, connectedAt: null } : prev.linkedin,
+        youtube: kind === "youtube" ? { connected: false, channelTitle: null, channelId: null, connectedAt: null } : prev.youtube,
+      }));
+      toast("Disconnected", "ok");
+    } catch (e: any) { toast(e.message, "err"); }
+  }
+
+  async function patchCrossPost(partial: { enabled?: boolean; destinations?: { linkedin?: boolean; youtube?: boolean } }) {
+    try {
+      const res = await api.patch("/api/settings", { crossPost: partial });
+      setState((prev) => ({ ...prev, crossPost: res.crossPost }));
+    } catch (e: any) { toast(e.message, "err"); }
+  }
+
   return (
     <div style={{ maxWidth: 720 }} className="stack gap24">
       <div className="sectionhead" style={{ marginBottom: 0 }}>
@@ -116,6 +139,91 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
           <div className="flex gap12 wrap">
             <div className="grow muted tiny">No account connected. Connect your Instagram Business account to publish.</div>
             <button className="btn primary sm" onClick={onConnect}><IconInstagram size={15} /> Connect Instagram</button>
+          </div>
+        )}
+      </div>
+
+      {/* Cross-post connections */}
+      <div className="card" style={{ padding: 22 }}>
+        <div className="flex gap12 mb16"><IconSparkle size={18} /><b>Repost connections</b></div>
+        <p className="tiny muted" style={{ marginTop: -8, marginBottom: 16 }}>
+          Connect LinkedIn and YouTube to auto-repost what you post on Instagram. Reels/videos → LinkedIn + YouTube Shorts; photos &amp; carousels → LinkedIn only.
+        </p>
+
+        {/* LinkedIn */}
+        <div className="flex gap12 wrap" style={{ paddingBottom: 14, borderBottom: "1px solid var(--border)" }}>
+          <div className="flex gap8" style={{ alignItems: "center" }}><IconLinkedIn size={20} /><b className="tiny">LinkedIn</b></div>
+          <div className="grow" />
+          {li.connected ? (
+            <>
+              <span className="tiny muted" style={{ alignSelf: "center" }}>{li.name}{li.connectedAt ? ` · ${new Date(li.connectedAt).toLocaleDateString()}` : ""}</span>
+              <span className="pill ok"><span className="dot" /> Connected</span>
+              <button className="btn danger sm" onClick={() => disconnectProvider("linkedin")}>Disconnect</button>
+            </>
+          ) : state.config.linkedinOAuth ? (
+            <button className="btn primary sm" onClick={() => (window.location.href = "/api/connect/linkedin/auth")}><IconLinkedIn size={15} /> Connect LinkedIn</button>
+          ) : (
+            <span className="tiny muted" style={{ alignSelf: "center" }}>Set <code>LINKEDIN_CLIENT_ID</code> / <code>LINKEDIN_CLIENT_SECRET</code></span>
+          )}
+        </div>
+
+        {/* YouTube */}
+        <div className="flex gap12 wrap mt16">
+          <div className="flex gap8" style={{ alignItems: "center" }}><IconYouTube size={20} /><b className="tiny">YouTube</b></div>
+          <div className="grow" />
+          {yt.connected ? (
+            <>
+              <span className="tiny muted" style={{ alignSelf: "center" }}>{yt.channelTitle || "Connected"}{yt.connectedAt ? ` · ${new Date(yt.connectedAt).toLocaleDateString()}` : ""}</span>
+              <span className="pill ok"><span className="dot" /> Connected</span>
+              <button className="btn danger sm" onClick={() => disconnectProvider("youtube")}>Disconnect</button>
+            </>
+          ) : state.config.youtubeOAuth ? (
+            <button className="btn primary sm" onClick={() => (window.location.href = "/api/connect/youtube/auth")}><IconYouTube size={15} /> Connect YouTube</button>
+          ) : (
+            <span className="tiny muted" style={{ alignSelf: "center" }}>Set <code>GOOGLE_OAUTH_CLIENT_ID</code> / <code>GOOGLE_OAUTH_CLIENT_SECRET</code></span>
+          )}
+        </div>
+      </div>
+
+      {/* Auto-repost */}
+      <div className="card" style={{ padding: 22 }}>
+        <div className="flex gap12">
+          <div className="grow">
+            <b>Auto-repost from Instagram</b>
+            <p className="tiny muted mt8">
+              When on, new Instagram posts are reposted automatically (within ~15 min): reels/videos → LinkedIn + YouTube Shorts, photos &amp; carousels → LinkedIn only.
+              Starts from now — your existing posts aren’t backfilled. Needs Instagram connected (not demo) and at least one destination connected.
+            </p>
+          </div>
+          <Toggle on={cp.enabled} onChange={(v) => patchCrossPost({ enabled: v })} />
+        </div>
+        <div className="flex gap16 mt16 wrap">
+          <label className="flex gap8 tiny" style={{ cursor: "pointer", alignItems: "center" }}>
+            <input type="checkbox" checked={cp.destinations.linkedin} onChange={(e) => patchCrossPost({ destinations: { linkedin: e.target.checked } })} style={{ accentColor: "var(--accent)" }} />
+            Repost to LinkedIn
+          </label>
+          <label className="flex gap8 tiny" style={{ cursor: "pointer", alignItems: "center" }}>
+            <input type="checkbox" checked={cp.destinations.youtube} onChange={(e) => patchCrossPost({ destinations: { youtube: e.target.checked } })} style={{ accentColor: "var(--accent)" }} />
+            Repost to YouTube Shorts
+          </label>
+        </div>
+        {cp.log.length > 0 && (
+          <div className="mt16">
+            <div className="tiny muted mb8">Recent activity</div>
+            <div className="rows">
+              {cp.log.slice(0, 5).map((e, i) => (
+                <div key={i} className="row">
+                  <div className="rowmain">
+                    <div className="rowtitle tiny">{e.caption || e.igId}</div>
+                    <div className="rowsub tiny">{new Date(e.at).toLocaleString()}</div>
+                  </div>
+                  <div className="flex gap6">
+                    {e.linkedin && <span className={`pill tiny ${e.linkedin.ok ? "ok" : "warn"}`}>in {e.linkedin.ok ? "✓" : e.linkedin.skipped ? "…" : "✕"}</span>}
+                    {e.youtube && <span className={`pill tiny ${e.youtube.ok ? "ok" : "warn"}`}>YT {e.youtube.ok ? "✓" : e.youtube.skipped ? "…" : "✕"}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

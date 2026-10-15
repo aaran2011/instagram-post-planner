@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getSession } from "@/lib/session";
 import { json, unauthorized } from "@/lib/api";
 import { processAllDue } from "@/lib/publisher";
+import { processAllCrossPosts } from "@/lib/crosspost";
 import { setLastTick } from "@/lib/kvstore";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +17,11 @@ async function run(req: NextRequest) {
   if (!authed) return unauthorized();
 
   const outcomes = await processAllDue();
+  // Cross-post new Instagram media to connected LinkedIn/YouTube (never let a
+  // cross-post error break Instagram publishing).
+  const crossPosts = await processAllCrossPosts().catch(() => []);
   await setLastTick(new Date().toISOString()).catch(() => {});
-  return json({ ran: true, processed: outcomes.length, outcomes });
+  return json({ ran: true, processed: outcomes.length, outcomes, crossPosts });
 }
 
 export async function GET(req: NextRequest) {

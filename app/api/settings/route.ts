@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest) {
     return badRequest("Invalid body");
   }
 
-  const settings = await updateDb((db) => {
+  const result = await updateDb((db) => {
     const s = db.settings;
     if (typeof body.timezone === "string" && isValidTz(body.timezone)) s.timezone = body.timezone;
     if (Array.isArray(body.defaultTimes)) {
@@ -31,10 +31,34 @@ export async function PATCH(req: NextRequest) {
     if (typeof body.aiEmojis === "boolean") s.aiEmojis = body.aiEmojis;
     if (typeof body.niche === "string") s.niche = body.niche.slice(0, 120);
     if (typeof body.demoMode === "boolean") s.demoMode = body.demoMode;
-    return { ...s };
+
+    // Cross-post (auto-repost) settings.
+    if (body.crossPost && typeof body.crossPost === "object") {
+      const cp = db.crossPost;
+      if (typeof body.crossPost.enabled === "boolean") cp.enabled = body.crossPost.enabled;
+      const d = body.crossPost.destinations;
+      if (d && typeof d === "object") {
+        if (typeof d.linkedin === "boolean") cp.destinations.linkedin = d.linkedin;
+        if (typeof d.youtube === "boolean") cp.destinations.youtube = d.youtube;
+      }
+      // Capture a baseline the first time it's switched on, so existing
+      // Instagram history isn't backfilled.
+      if (cp.enabled && !cp.baselineAt) cp.baselineAt = new Date().toISOString();
+    }
+
+    return {
+      settings: { ...s },
+      crossPost: {
+        enabled: db.crossPost.enabled,
+        destinations: db.crossPost.destinations,
+        baselineAt: db.crossPost.baselineAt,
+        lastSyncAt: db.crossPost.lastSyncAt,
+        log: db.crossPost.log.slice(0, 20),
+      },
+    };
   });
 
-  return json({ settings });
+  return json(result);
 }
 
 function isValidTz(tz: string) {
