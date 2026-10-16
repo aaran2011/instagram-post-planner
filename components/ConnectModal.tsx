@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useApp, Modal, CloseButton, Spinner } from "./ui";
 import { api } from "./store";
-import { IconInstagram, IconAlert, IconCheck, IconLink } from "./icons";
+import { IconInstagram, IconAlert, IconCheck, IconLink, IconLinkedIn, IconYouTube } from "./icons";
 
 export default function ConnectModal({ onClose }: { onClose: () => void }) {
   const { state, setState, toast, refresh } = useApp();
@@ -78,7 +78,53 @@ export default function ConnectModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
+
+        {/* Other platforms for auto-reposting */}
+        <div className="tiny muted" style={{ margin: "20px 0 10px", fontWeight: 700 }}>Also connect — to auto-repost your posts</div>
+
+        <ProviderCard
+          kind="linkedin" label="LinkedIn" icon={<IconLinkedIn size={16} />}
+          connected={state.linkedin.connected} name={state.linkedin.name}
+          configured={Boolean(state.config.linkedinOAuth)}
+          envHint="LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET"
+          note="Posts your reels (video) and photos/carousels (images)."
+        />
+        <ProviderCard
+          kind="youtube" label="YouTube" icon={<IconYouTube size={16} />}
+          connected={state.youtube.connected} name={state.youtube.channelTitle}
+          configured={Boolean(state.config.youtubeOAuth)}
+          envHint="GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET"
+          note="Posts your reels as YouTube Shorts (videos only — no photos)."
+        />
       </div>
     </Modal>
+  );
+}
+
+function ProviderCard({ kind, label, icon, connected, name, configured, envHint, note }: {
+  kind: "linkedin" | "youtube"; label: string; icon: React.ReactNode;
+  connected: boolean; name: string | null; configured: boolean; envHint: string; note: string;
+}) {
+  return (
+    <div className="card mt12" style={{ padding: 16 }}>
+      <div className="flex gap8 mb8">{icon}<b>{label}</b>
+        {connected ? <span className="pill ok right"><span className="dot" />Connected</span>
+          : configured ? <span className="pill right"><span className="dot" />Ready</span>
+          : <span className="pill warn right"><span className="dot" />Not configured</span>}
+      </div>
+      <p className="tiny muted mb8">{note}</p>
+      {connected ? (
+        <div className="tiny muted">{name || "Connected"}</div>
+      ) : configured ? (
+        <button className="btn primary block" onClick={() => (window.location.href = `/api/connect/${kind}/auth`)}>
+          {icon} Connect {label}
+        </button>
+      ) : (
+        <div className="banner tiny" style={{ background: "var(--surface-2)" }}>
+          <IconAlert size={15} className="bicon" />
+          <div>Set <code>{envHint}</code> to enable this.</div>
+        </div>
+      )}
+    </div>
   );
 }

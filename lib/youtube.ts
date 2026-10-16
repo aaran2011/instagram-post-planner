@@ -11,8 +11,11 @@ export async function uploadShort(
   token: string,
   opts: { title: string; description: string; videoBytes: Buffer; mime?: string },
 ): Promise<{ videoId: string }> {
-  const title = (opts.title || "Reel").slice(0, 100);
-  const description = `${opts.description || ""}\n\n#Shorts`.trim().slice(0, 4900);
+  // Caption is kept verbatim (no appended hashtags). YouTube requires a title
+  // field (<=100 chars) separate from the description, so the title is the
+  // caption's first line truncated — the description carries the exact caption.
+  const title = (opts.title || "Reel").replace(/\s+/g, " ").trim().slice(0, 100) || "Reel";
+  const description = (opts.description || "").slice(0, 4900);
   const mime = opts.mime || "video/mp4";
 
   // 1) start a resumable session

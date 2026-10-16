@@ -1,11 +1,11 @@
 import type {
   Post, Settings, InstagramAccount, LinkedInAccount, YouTubeAccount, CrossPostLogEntry,
-  CrossPostDestination, MediaAnalysis, EditStyle, EditAdjustments,
+  CrossPostDestination, CrossPostJob, MediaAnalysis, EditStyle, EditAdjustments,
 } from "@/lib/types";
 
 export type {
   Post, Settings, InstagramAccount, LinkedInAccount, YouTubeAccount, CrossPostLogEntry,
-  CrossPostDestination, MediaAnalysis, EditStyle, EditAdjustments,
+  CrossPostDestination, CrossPostJob, MediaAnalysis, EditStyle, EditAdjustments,
 };
 
 // Sanitized cross-post state the client sees (no secrets, trimmed log).
@@ -15,6 +15,7 @@ export interface ClientCrossPost {
   baselineAt: string | null;
   lastSyncAt: string | null;
   log: CrossPostLogEntry[];
+  jobs: CrossPostJob[];
 }
 
 export interface ClientMedia {

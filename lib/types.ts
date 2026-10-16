@@ -146,15 +146,32 @@ export interface CrossPostLogEntry {
   youtube?: { ok: boolean; id?: string; error?: string; skipped?: string };
 }
 
+// A specific Instagram item the user chose (in the Automation builder) to
+// cross-post at a chosen time to chosen destinations. Processed by the scheduler.
+export interface CrossPostJob {
+  id: string;
+  igId: string;
+  mediaType: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  destinations: CrossPostDestination[];
+  caption: string;
+  thumbUrl: string | null;
+  scheduledAt: string; // ISO; past/now = post immediately on next tick
+  status: "scheduled" | "done" | "failed";
+  result?: CrossPostLogEntry;
+  createdAt: string;
+}
+
 // Auto-repost state: which Instagram media have already been handled, plus a
-// baseline so existing history is never backfilled.
+// baseline so existing history is never backfilled, plus any explicit jobs the
+// user scheduled via the Automation builder.
 export interface CrossPostState {
   enabled: boolean;
   destinations: Record<CrossPostDestination, boolean>;
-  repostedIgIds: string[]; // dedup: IG media ids already handled
+  repostedIgIds: string[]; // dedup: IG media ids already handled by the watcher
   log: CrossPostLogEntry[]; // recent activity (capped)
-  baselineAt: string | null; // only media newer than this is reposted
+  baselineAt: string | null; // only media newer than this is auto-reposted
   lastSyncAt: string | null; // throttle marker
+  jobs: CrossPostJob[]; // explicit user-scheduled cross-posts
 }
 
 // One account's private data. Each app account (User) owns an isolated copy —

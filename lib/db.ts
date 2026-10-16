@@ -35,7 +35,7 @@ const DEFAULT_YOUTUBE: YouTubeAccount = {
 const DEFAULT_CROSSPOST: CrossPostState = {
   enabled: false,
   destinations: { linkedin: true, youtube: true },
-  repostedIgIds: [], log: [], baselineAt: null, lastSyncAt: null,
+  repostedIgIds: [], log: [], baselineAt: null, lastSyncAt: null, jobs: [],
 };
 const DEFAULT_SECRETS = {
   instagramAccessToken: null, linkedinAccessToken: null, linkedinExpiresAt: null,
@@ -71,6 +71,7 @@ function withAccountDefaults(p: Partial<Database> | null | undefined): Database 
       destinations: { ...DEFAULT_CROSSPOST.destinations, ...(d.crossPost?.destinations ?? {}) },
       repostedIgIds: d.crossPost?.repostedIgIds ?? [],
       log: d.crossPost?.log ?? [],
+      jobs: d.crossPost?.jobs ?? [],
     },
     editStyle: d.editStyle ?? null,
     secrets: { ...DEFAULT_SECRETS, ...(d.secrets ?? {}) },

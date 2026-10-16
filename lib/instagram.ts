@@ -373,6 +373,7 @@ export interface IgMediaItem {
   mediaType: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
   productType: string | null;
   mediaUrl: string | null;
+  thumbnailUrl: string | null; // poster for videos / display thumb
   permalink: string | null;
   timestamp: string | null; // ISO
   children: { id: string; mediaType: "IMAGE" | "VIDEO"; mediaUrl: string | null }[];
@@ -384,7 +385,7 @@ export async function fetchRecentMedia(
   const res = await graphGet(`/${igUserId}/media`, {
     access_token: accessToken,
     fields:
-      "id,caption,media_type,media_product_type,permalink,timestamp,media_url," +
+      "id,caption,media_type,media_product_type,permalink,timestamp,media_url,thumbnail_url," +
       "children{id,media_type,media_url}",
     limit: String(limit),
   });
@@ -395,6 +396,7 @@ export async function fetchRecentMedia(
     mediaType: (m.media_type as IgMediaItem["mediaType"]) || "IMAGE",
     productType: m.media_product_type ?? null,
     mediaUrl: m.media_url ?? null,
+    thumbnailUrl: m.thumbnail_url ?? (m.media_type === "IMAGE" ? m.media_url ?? null : null),
     permalink: m.permalink ?? null,
     timestamp: m.timestamp ?? null,
     children: Array.isArray(m.children?.data)

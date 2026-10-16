@@ -20,6 +20,7 @@ import SettingsView from "./views/SettingsView";
 import PostModal from "./PostModal";
 import ConnectModal from "./ConnectModal";
 import GrowthModal from "./GrowthModal";
+import AutomationModal from "./AutomationModal";
 import { IconSparkle } from "./icons";
 
 interface Toast { id: number; msg: string; type: "ok" | "err" | "info"; }
@@ -33,6 +34,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
   const [growthOpen, setGrowthOpen] = useState(false);
+  const [automationOpen, setAutomationOpen] = useState(false);
 
   const toast = useCallback((msg: string, type: "ok" | "err" | "info" = "info") => {
     const id = Date.now() + Math.random();
@@ -93,6 +95,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
   }
 
   const ig = state.instagram;
+  const connectedCount = [state.instagram.connected, state.linkedin.connected, state.youtube.connected].filter(Boolean).length;
   const counts = {
     media: state.media.length,
     posts: state.posts.length,
@@ -156,6 +159,11 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
             </button>
             <div className="title">{navItems.find((n) => n.key === view)?.label}</div>
             <div className="spacer" />
+            {connectedCount >= 2 && (
+              <button className="btn subtle sm" onClick={() => setAutomationOpen(true)}>
+                <IconBolt size={15} /> Automation
+              </button>
+            )}
             <button className="btn subtle sm" onClick={() => setGrowthOpen(true)}>
               <IconSparkle size={15} /> Grow followers
             </button>
@@ -189,6 +197,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
       {openPostId && <PostModal postId={openPostId} onClose={() => setOpenPostId(null)} />}
       {connectOpen && <ConnectModal onClose={() => setConnectOpen(false)} />}
       {growthOpen && <GrowthModal onClose={() => setGrowthOpen(false)} />}
+      {automationOpen && <AutomationModal onClose={() => setAutomationOpen(false)} />}
 
       <div className="toasts">
         {toasts.map((t) => (
