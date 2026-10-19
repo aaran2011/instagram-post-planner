@@ -14,6 +14,7 @@ export interface ClientCrossPost {
   destinations: Record<CrossPostDestination, boolean>;
   baselineAt: string | null;
   lastSyncAt: string | null;
+  lastRepostAt: string | null;
   log: CrossPostLogEntry[];
   jobs: CrossPostJob[];
 }

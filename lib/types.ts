@@ -173,6 +173,7 @@ export interface CrossPostState {
   log: CrossPostLogEntry[]; // recent activity (capped)
   baselineAt: string | null; // only media newer than this is auto-reposted
   lastSyncAt: string | null; // throttle marker
+  lastRepostAt: string | null; // last auto-repost time (enforces 1/day)
   jobs: CrossPostJob[]; // explicit user-scheduled cross-posts
 }
 

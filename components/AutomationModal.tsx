@@ -62,7 +62,7 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
                 <b>Auto-repost new Instagram posts</b>
                 <p className="tiny muted mt8">
                   Reels/videos → LinkedIn + YouTube Shorts · Photos &amp; carousels → LinkedIn only.
-                  Nothing is changed — same video, music and caption. Runs within ~15 min; starts from now (no backfill).
+                  Nothing is changed — same video, music and caption. <b>At most one post per day</b>, within ~15 min; starts from now (no backfill).
                 </p>
               </div>
               <ToggleSm on={cp.enabled} onChange={(v) => patchCrossPost({ enabled: v })} />

@@ -207,7 +207,7 @@ export default function SettingsView({ onConnect, onAutomate }: { onConnect: () 
             <b>Auto-repost from Instagram</b>
             <p className="tiny muted mt8">
               When on, new Instagram posts are reposted automatically (within ~15 min): reels/videos → LinkedIn + YouTube Shorts, photos &amp; carousels → LinkedIn only.
-              Starts from now — your existing posts aren’t backfilled. Needs Instagram connected (not demo) and at least one destination connected.
+              <b>At most one per day.</b> Starts from now — your existing posts aren’t backfilled. Needs Instagram connected (not demo) and at least one destination connected.
             </p>
           </div>
           <Toggle on={cp.enabled} onChange={(v) => patchCrossPost({ enabled: v })} />

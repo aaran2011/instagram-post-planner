@@ -11,7 +11,6 @@ import type { CrossPostLogEntry, CrossPostDestination, Database } from "./types"
 // modified). Videos/reels → LinkedIn + YouTube Shorts; photos/carousels →
 // LinkedIn only. Account-scoped (no session) so the scheduler can run it.
 
-const MAX_PER_TICK = 2; // watcher items per tick (quota + 300s budget)
 const MAX_JOBS_PER_TICK = 3;
 const MAX_BYTES = 100 * 1024 * 1024;
 const SYNC_INTERVAL_MS = 15 * 60 * 1000;
@@ -150,18 +149,28 @@ async function syncAccount(uid: string, now = new Date()): Promise<SyncOutcome> 
     return { uid, processed: 0, results: [] };
   }
 
+  // Rate limit: auto-repost at most ONE item per 24h.
+  const DAILY_MS = 24 * 3600 * 1000;
+  const lastRepost = cp.lastRepostAt ? Date.parse(cp.lastRepostAt) : 0;
+  if (now.getTime() - lastRepost < DAILY_MS) {
+    await updateAccount(uid, (d) => { d.crossPost.lastSyncAt = now.toISOString(); });
+    return { uid, processed: 0, results: [] };
+  }
+
   const already = new Set(cp.repostedIgIds);
   const baseline = Date.parse(cp.baselineAt);
   const candidates = items
     .filter((it) => !already.has(it.id) && it.timestamp && Date.parse(it.timestamp) > baseline)
     .sort((a, b) => Date.parse(a.timestamp || "") - Date.parse(b.timestamp || ""))
-    .slice(0, MAX_PER_TICK);
+    .slice(0, 1); // one per day
 
   const results: CrossPostLogEntry[] = [];
   for (const item of candidates) {
     const { entry, markDone } = await crossPostOne(uid, db, item, cp.destinations.linkedin, cp.destinations.youtube);
+    const posted = Boolean(entry.linkedin?.ok || entry.youtube?.ok);
     await updateAccount(uid, (d) => {
       if (markDone) d.crossPost.repostedIgIds = [...d.crossPost.repostedIgIds, item.id].slice(-KEEP_IDS);
+      if (posted) d.crossPost.lastRepostAt = now.toISOString(); // start the 24h clock
       d.crossPost.log = [entry, ...d.crossPost.log].slice(0, 100);
       d.crossPost.lastSyncAt = now.toISOString();
     });

@@ -44,6 +44,7 @@ export async function buildClientState() {
       destinations: db.crossPost.destinations,
       baselineAt: db.crossPost.baselineAt,
       lastSyncAt: db.crossPost.lastSyncAt,
+      lastRepostAt: db.crossPost.lastRepostAt,
       log: db.crossPost.log.slice(0, 20),
       jobs: db.crossPost.jobs.slice(0, 50),
     },
