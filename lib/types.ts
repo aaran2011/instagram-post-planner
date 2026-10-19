@@ -127,6 +127,7 @@ export interface LinkedInAccount {
   name: string | null; // from /v2/userinfo
   memberId: string | null; // OIDC "sub"; author URN = urn:li:person:{memberId}
   connectedAt: string | null;
+  demo?: boolean; // simulated connection (no real posting)
 }
 
 export interface YouTubeAccount {
@@ -134,6 +135,7 @@ export interface YouTubeAccount {
   channelTitle: string | null;
   channelId: string | null;
   connectedAt: string | null;
+  demo?: boolean; // simulated connection (no real posting)
 }
 
 export type CrossPostDestination = "linkedin" | "youtube";

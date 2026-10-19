@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconAlert, IconCheck } from "./icons";
+import { IconAlert, IconCheck, Logo } from "./icons";
 
 type Mode = "login" | "signup" | "reset-request" | "reset-verify" | "reset-done";
 
@@ -156,7 +156,7 @@ export default function LoginForm() {
   return (
     <div className="loginwrap">
       <div className="card logincard">
-        <div className="loginlogo">◐</div>
+        <div className="loginlogo"><Logo size={34} /></div>
         <h1 style={{ fontSize: 26 }}>Instagram Planner</h1>
         <p className="muted mt8 mb24">Your private content command center.</p>
 

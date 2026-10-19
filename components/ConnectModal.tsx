@@ -84,14 +84,12 @@ export default function ConnectModal({ onClose }: { onClose: () => void }) {
 
         <ProviderCard
           kind="linkedin" label="LinkedIn" icon={<IconLinkedIn size={16} />}
-          connected={state.linkedin.connected} name={state.linkedin.name}
           configured={Boolean(state.config.linkedinOAuth)}
           envHint="LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET"
           note="Posts your reels (video) and photos/carousels (images)."
         />
         <ProviderCard
           kind="youtube" label="YouTube" icon={<IconYouTube size={16} />}
-          connected={state.youtube.connected} name={state.youtube.channelTitle}
           configured={Boolean(state.config.youtubeOAuth)}
           envHint="GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET"
           note="Posts your reels as YouTube Shorts (videos only — no photos)."
@@ -101,28 +99,50 @@ export default function ConnectModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ProviderCard({ kind, label, icon, connected, name, configured, envHint, note }: {
+function ProviderCard({ kind, label, icon, configured, envHint, note }: {
   kind: "linkedin" | "youtube"; label: string; icon: React.ReactNode;
-  connected: boolean; name: string | null; configured: boolean; envHint: string; note: string;
+  configured: boolean; envHint: string; note: string;
 }) {
+  const { state, setState, toast } = useApp();
+  const acct = kind === "linkedin" ? state.linkedin : state.youtube;
+  const name = kind === "linkedin" ? state.linkedin.name : state.youtube.channelTitle;
+  const [busy, setBusy] = useState(false);
+
+  async function demo() {
+    setBusy(true);
+    try {
+      const res = await api.post("/api/connect/demo", { provider: kind });
+      setState(res);
+      toast(`${label} demo connected`, "ok");
+    } catch (e: any) { toast(e.message, "err"); }
+    finally { setBusy(false); }
+  }
+
   return (
     <div className="card mt12" style={{ padding: 16 }}>
       <div className="flex gap8 mb8">{icon}<b>{label}</b>
-        {connected ? <span className="pill ok right"><span className="dot" />Connected</span>
+        {acct.connected ? <span className="pill ok right"><span className="dot" />{acct.demo ? "Demo" : "Connected"}</span>
           : configured ? <span className="pill right"><span className="dot" />Ready</span>
           : <span className="pill warn right"><span className="dot" />Not configured</span>}
       </div>
       <p className="tiny muted mb8">{note}</p>
-      {connected ? (
-        <div className="tiny muted">{name || "Connected"}</div>
-      ) : configured ? (
-        <button className="btn primary block" onClick={() => (window.location.href = `/api/connect/${kind}/auth`)}>
-          {icon} Connect {label}
-        </button>
+      {acct.connected ? (
+        <div className="tiny muted">{name || "Connected"}{acct.demo ? " · simulated (no real posting)" : ""}</div>
       ) : (
-        <div className="banner tiny" style={{ background: "var(--surface-2)" }}>
-          <IconAlert size={15} className="bicon" />
-          <div>Set <code>{envHint}</code> to enable this.</div>
+        <div className="stack gap8">
+          {configured ? (
+            <button className="btn primary block" onClick={() => (window.location.href = `/api/connect/${kind}/auth`)}>
+              {icon} Connect {label}
+            </button>
+          ) : (
+            <div className="banner tiny" style={{ background: "var(--surface-2)" }}>
+              <IconAlert size={15} className="bicon" />
+              <div>Set <code>{envHint}</code> for real posting.</div>
+            </div>
+          )}
+          <button className="btn subtle block" onClick={demo} disabled={busy}>
+            {busy ? <Spinner dark /> : null} Try demo (simulated)
+          </button>
         </div>
       )}
     </div>

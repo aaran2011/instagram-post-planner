@@ -43,9 +43,13 @@ export async function crossPostOne(
 
   const doLinkedIn = wantLinkedIn && db.linkedin.connected;
   const doYouTube = wantYouTube && db.youtube.connected && item.mediaType === "VIDEO";
+  const demo = db.settings.demoMode || db.instagram.demo;
   let attempted = false;
 
-  if (doLinkedIn) {
+  if (doLinkedIn && (demo || db.linkedin.demo)) {
+    attempted = true;
+    entry.linkedin = { ok: true, id: "DEMO" };
+  } else if (doLinkedIn) {
     attempted = true;
     try {
       const token = await getValidLinkedInToken(uid);
@@ -87,7 +91,10 @@ export async function crossPostOne(
     }
   }
 
-  if (doYouTube) {
+  if (doYouTube && (demo || db.youtube.demo)) {
+    attempted = true;
+    entry.youtube = { ok: true, id: "DEMO" };
+  } else if (doYouTube) {
     attempted = true;
     try {
       if (!item.mediaUrl) throw new Error("no media url");
