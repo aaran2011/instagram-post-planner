@@ -42,10 +42,11 @@ export async function crossPostOne(
 
   const doLinkedIn = wantLinkedIn && db.linkedin.connected;
   const doYouTube = wantYouTube && db.youtube.connected && item.mediaType === "VIDEO";
-  const demo = db.settings.demoMode || db.instagram.demo;
   let attempted = false;
 
-  if (doLinkedIn && (demo || db.linkedin.demo)) {
+  // Only a DEMO destination connection is simulated. This app's IG "Demo mode"
+  // (which simulates publishing TO Instagram) does not affect cross-posting.
+  if (doLinkedIn && db.linkedin.demo) {
     attempted = true;
     entry.linkedin = { ok: true, id: "DEMO" };
   } else if (doLinkedIn) {
@@ -90,7 +91,7 @@ export async function crossPostOne(
     }
   }
 
-  if (doYouTube && (demo || db.youtube.demo)) {
+  if (doYouTube && db.youtube.demo) {
     attempted = true;
     entry.youtube = { ok: true, id: "DEMO" };
   } else if (doYouTube) {
@@ -128,7 +129,9 @@ async function syncAccount(uid: string, now = new Date()): Promise<SyncOutcome> 
   const igToken = db.secrets.instagramAccessToken;
   const igUserId = db.instagram.igUserId;
 
-  if (!cp.enabled || !db.instagram.connected || db.instagram.demo || db.settings.demoMode ||
+  // Cross-posting needs a REAL Instagram to read from + a connected destination.
+  // It is independent of the IG "Demo mode" (that only simulates IG publishing).
+  if (!cp.enabled || !db.instagram.connected || db.instagram.demo ||
       !igToken || !igUserId || (!liOn && !ytOn)) {
     await updateAccount(uid, (d) => { d.crossPost.lastSyncAt = now.toISOString(); });
     return { uid, processed: 0, results: [] };
@@ -183,7 +186,7 @@ async function syncAccount(uid: string, now = new Date()): Promise<SyncOutcome> 
 // ---- Scheduled jobs (from the Automation builder) ----
 async function processDueJobs(uid: string, now: Date): Promise<number> {
   const db = await readAccount(uid);
-  if (!db || db.settings.demoMode || db.instagram.demo) return 0;
+  if (!db || db.instagram.demo) return 0;
   const igToken = db.secrets.instagramAccessToken;
   const igUserId = db.instagram.igUserId;
   if (!igToken || !igUserId) return 0;
