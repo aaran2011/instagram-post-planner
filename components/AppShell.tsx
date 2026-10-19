@@ -7,7 +7,7 @@ import { AppProvider, useApp, View } from "./ui";
 import {
   IconUpload, IconGrid, IconCalendar, IconRocket, IconBolt, IconSettings,
   IconInstagram, IconLogout, IconMenu, IconCheck, IconAlert, IconLink,
-  IconWand, IconFilm, Logo,
+  IconWand, IconFilm, IconLinkedIn, IconYouTube, Logo,
 } from "./icons";
 import UploadView from "./views/UploadView";
 import EditView from "./views/EditView";
@@ -146,6 +146,22 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
             </span>
             {ig.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
           </button>
+
+          <button className="nav-item" onClick={() => (state.linkedin.connected ? go("settings") : setConnectOpen(true))}>
+            <IconLinkedIn size={19} />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {state.linkedin.connected ? (state.linkedin.demo ? "LinkedIn · demo" : "LinkedIn") : "Connect LinkedIn"}
+            </span>
+            {state.linkedin.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
+          </button>
+          <button className="nav-item" onClick={() => (state.youtube.connected ? go("settings") : setConnectOpen(true))}>
+            <IconYouTube size={19} />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {state.youtube.connected ? (state.youtube.demo ? "YouTube · demo" : "YouTube") : "Connect YouTube"}
+            </span>
+            {state.youtube.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
+          </button>
+
           <button className="nav-item" onClick={logout}>
             <IconLogout size={19} />
             <span>Log out</span>
@@ -189,7 +205,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
             {view === "calendar" && <CalendarView />}
             {view === "review" && <ReviewView onConnect={() => setConnectOpen(true)} />}
             {view === "automation" && <AutomationView />}
-            {view === "settings" && <SettingsView onConnect={() => setConnectOpen(true)} />}
+            {view === "settings" && <SettingsView onConnect={() => setConnectOpen(true)} onAutomate={() => setAutomationOpen(true)} />}
           </div>
         </div>
       </div>

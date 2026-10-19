@@ -3,10 +3,11 @@ import React, { useState } from "react";
 import { useApp, Spinner } from "../ui";
 import { api } from "../store";
 import { tzListWith } from "../tz";
-import { IconInstagram, IconCheck, IconAlert, IconPlus, IconClose, IconSparkle, IconWand, IconTrash, IconLinkedIn, IconYouTube } from "../icons";
+import { IconInstagram, IconCheck, IconAlert, IconPlus, IconClose, IconSparkle, IconWand, IconTrash, IconLinkedIn, IconYouTube, IconBolt } from "../icons";
 
-export default function SettingsView({ onConnect }: { onConnect: () => void }) {
+export default function SettingsView({ onConnect, onAutomate }: { onConnect: () => void; onAutomate?: () => void }) {
   const { state, setState, toast, go } = useApp();
+  const connectedCount = [state.instagram.connected, state.linkedin.connected, state.youtube.connected].filter(Boolean).length;
   const s = state.settings;
   const [timezone, setTimezone] = useState(s.timezone);
   const [times, setTimes] = useState<string[]>(s.defaultTimes);
@@ -142,6 +143,20 @@ export default function SettingsView({ onConnect }: { onConnect: () => void }) {
           </div>
         )}
       </div>
+
+      {/* Automate — appears once at least 2 platforms are connected */}
+      {connectedCount >= 2 && onAutomate && (
+        <div className="card" style={{ padding: 22, borderColor: "var(--accent)" }}>
+          <div className="flex gap12 wrap" style={{ alignItems: "center" }}>
+            <IconBolt size={20} />
+            <div className="grow">
+              <b>Automate</b>
+              <p className="tiny muted mt8">Review your Instagram posts and repost them to LinkedIn &amp; YouTube — choose destinations and timing, or let the auto-repost rule run it for you.</p>
+            </div>
+            <button className="btn primary" onClick={onAutomate}><IconBolt size={16} /> Open automation</button>
+          </div>
+        </div>
+      )}
 
       {/* Cross-post connections */}
       <div className="card" style={{ padding: 22 }}>
