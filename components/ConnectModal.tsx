@@ -96,18 +96,15 @@ function ProviderCard({ kind, label, icon, configured, envHint, note }: {
       <p className="tiny muted mb8">{note}</p>
       {acct.connected ? (
         <div className="tiny muted">{name || "Connected"}</div>
+      ) : configured ? (
+        <button className="btn primary block" onClick={() => (window.location.href = `/api/connect/${kind}/auth`)}>
+          {icon} Connect {label}
+        </button>
       ) : (
-        <>
-          <button className="btn primary block" onClick={() => (window.location.href = `/api/connect/${kind}/auth`)}>
-            {icon} Connect {label}
-          </button>
-          {!configured && (
-            <div className="banner tiny mt8" style={{ background: "var(--surface-2)" }}>
-              <IconAlert size={15} className="bicon" />
-              <div>One-time setup needed to log in: add <code>{envHint}</code> and the redirect URL. Ask Claude to help set this up.</div>
-            </div>
-          )}
-        </>
+        <div className="banner tiny" style={{ background: "var(--surface-2)" }}>
+          <IconAlert size={15} className="bicon" />
+          <div><b>One-time setup needed</b> before you can log in: add <code>{envHint}</code> and the redirect URL (Vercel env vars). Ask Claude to walk you through it, then the Connect button appears here.</div>
+        </div>
       )}
     </div>
   );

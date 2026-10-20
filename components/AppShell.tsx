@@ -62,7 +62,15 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
       refresh();
       window.history.replaceState({}, "", "/");
     } else if (p.get("error")) {
-      toast(decodeURIComponent(p.get("error")!), "err");
+      const code = decodeURIComponent(p.get("error")!);
+      const friendly: Record<string, string> = {
+        linkedin_not_configured: "LinkedIn isn't connected yet — it needs a one-time setup before you can log in. Ask Claude to help.",
+        youtube_not_configured: "YouTube isn't connected yet — it needs a one-time setup before you can log in. Ask Claude to help.",
+        ig_not_configured: "Instagram isn't set up yet — add its app credentials first.",
+        state_mismatch: "The sign-in link expired. Please try connecting again.",
+        missing_code: "Connection was cancelled. Please try again.",
+      };
+      toast(friendly[code] || code, "err");
       window.history.replaceState({}, "", "/");
     } else if (p.get("connect")) {
       if (!initial.instagram.connected) setConnectOpen(true);
