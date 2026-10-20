@@ -30,7 +30,7 @@ export default function ConnectModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal onClose={onClose} className="narrow">
-      <div style={{ padding: 26 }}>
+      <div style={{ padding: 26, overflowY: "auto", flex: 1, minHeight: 0 }}>
         <div className="flex mb16">
           <div className="flex gap10"><IconInstagram size={22} /><h2 style={{ fontSize: 20 }}>Connect Instagram</h2></div>
           <div className="right" /><CloseButton onClose={onClose} />
