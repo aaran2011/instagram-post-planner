@@ -12,6 +12,18 @@ interface ReviewItem {
   isVideo: boolean; reposted: boolean; queued: boolean;
 }
 
+// Suggest an editable post time: the next preferred posting time, staggered one
+// per day (matching the "one per day" rule). Returned as a datetime-local value.
+function suggestWhen(index: number, times: string[]): string {
+  const [h, m] = ((times && times[0]) || "11:00").split(":").map((n) => parseInt(n, 10));
+  const d = new Date();
+  d.setHours(isNaN(h) ? 11 : h, isNaN(m) ? 0 : m, 0, 0);
+  if (d.getTime() < Date.now() + 5 * 60 * 1000) d.setDate(d.getDate() + 1); // past today → tomorrow
+  d.setDate(d.getDate() + index); // one item per day
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function AutomationModal({ onClose }: { onClose: () => void }) {
   const { state, setState, toast } = useApp();
   const cp = state.crossPost;
@@ -92,8 +104,9 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
             {!loading && !err && items.length === 0 && <div className="tiny muted mt12">No Instagram posts found (connect a real Instagram account — demo mode has none).</div>}
 
             <div className="stack gap8 mt12">
-              {items.map((it) => (
+              {items.map((it, i) => (
                 <ReviewRow key={it.id} item={it} liConnected={liConnected} ytConnected={ytConnected}
+                  defaultWhen={suggestWhen(i, state.settings.defaultTimes)}
                   onDone={(reposted) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, reposted: reposted || x.reposted } : x)))}
                   onState={(res) => setState(res)} toast={toast} />
               ))}
@@ -123,13 +136,13 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ReviewRow({ item, liConnected, ytConnected, onDone, onState, toast }: {
-  item: ReviewItem; liConnected: boolean; ytConnected: boolean;
+function ReviewRow({ item, liConnected, ytConnected, defaultWhen, onDone, onState, toast }: {
+  item: ReviewItem; liConnected: boolean; ytConnected: boolean; defaultWhen: string;
   onDone: (reposted: boolean) => void; onState: (s: any) => void; toast: (m: string, t?: "ok" | "err" | "info") => void;
 }) {
   const [li, setLi] = useState(liConnected);
   const [yt, setYt] = useState(ytConnected && item.isVideo);
-  const [when, setWhen] = useState("");
+  const [when, setWhen] = useState(defaultWhen); // suggested time, editable
   const [busy, setBusy] = useState(false);
 
   const destinations = [...(li ? ["linkedin"] : []), ...(yt && item.isVideo ? ["youtube"] : [])];
@@ -177,7 +190,9 @@ function ReviewRow({ item, liConnected, ytConnected, onDone, onState, toast }: {
             <input type="checkbox" checked={yt} disabled={!ytConnected || !item.isVideo} onChange={(e) => setYt(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
             <IconYouTube size={12} /> YouTube
           </label>
-          <input className="input" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} style={{ height: 28, fontSize: 12, width: 180 }} />
+          <span className="tiny muted" title="Suggested time — edit if you like">at</span>
+          <input className="input" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)}
+            title="Suggested time — editable" style={{ height: 28, fontSize: 12, width: 178 }} />
         </div>
       </div>
       <div className="stack" style={{ gap: 4, flex: "none" }}>
