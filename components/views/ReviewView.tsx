@@ -76,7 +76,7 @@ export default function ReviewView({ onConnect }: { onConnect: () => void }) {
         <div className="card stat">
           <div className="k">Instagram</div>
           {ig.connected ? (
-            <><div className="v" style={{ fontSize: 15 }}>@{ig.username}</div><div className="tiny muted">{ig.demo ? "Demo connection" : ig.accountType}</div></>
+            <><div className="v" style={{ fontSize: 15 }}>@{ig.username}</div><div className="tiny muted">{ig.accountType}</div></>
           ) : (
             <button className="btn subtle sm mt8" onClick={onConnect}><IconInstagram size={15} /> Connect</button>
           )}

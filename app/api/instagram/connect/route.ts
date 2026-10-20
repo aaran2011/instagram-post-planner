@@ -6,7 +6,7 @@ import { connectWithManualToken } from "@/lib/instagram";
 
 export const dynamic = "force-dynamic";
 
-// mode: "oauth" (return redirect url) | "manual" (env token) | "demo".
+// mode: "oauth" (return redirect url) | "manual" (env token).
 export async function POST(req: NextRequest) {
   const denied = guard();
   if (denied) return denied;
@@ -45,22 +45,6 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
       return badRequest(e?.message || "Could not connect with the provided token.");
     }
-  }
-
-  if (mode === "demo") {
-    const username = String(body?.username || "your_handle").replace(/^@/, "");
-    await updateDb((db) => {
-      db.instagram = {
-        connected: true,
-        username,
-        igUserId: "demo_user",
-        accountType: "BUSINESS",
-        connectedAt: new Date().toISOString(),
-        demo: true,
-      };
-      db.secrets.instagramAccessToken = null;
-    });
-    return json({ ok: true, demo: true });
   }
 
   return badRequest("Unknown connect mode.", { configured: instagramConfigured() });

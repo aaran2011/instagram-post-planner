@@ -44,12 +44,7 @@ export async function crossPostOne(
   const doYouTube = wantYouTube && db.youtube.connected && item.mediaType === "VIDEO";
   let attempted = false;
 
-  // Only a DEMO destination connection is simulated. This app's IG "Demo mode"
-  // (which simulates publishing TO Instagram) does not affect cross-posting.
-  if (doLinkedIn && db.linkedin.demo) {
-    attempted = true;
-    entry.linkedin = { ok: true, id: "DEMO" };
-  } else if (doLinkedIn) {
+  if (doLinkedIn) {
     attempted = true;
     try {
       const token = await getValidLinkedInToken(uid);
@@ -91,10 +86,7 @@ export async function crossPostOne(
     }
   }
 
-  if (doYouTube && db.youtube.demo) {
-    attempted = true;
-    entry.youtube = { ok: true, id: "DEMO" };
-  } else if (doYouTube) {
+  if (doYouTube) {
     attempted = true;
     try {
       if (!item.mediaUrl) throw new Error("no media url");

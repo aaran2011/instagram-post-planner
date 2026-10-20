@@ -27,10 +27,10 @@ const DEFAULT_INSTAGRAM: InstagramAccount = {
   connected: false, username: null, igUserId: null, accountType: null, connectedAt: null, demo: false,
 };
 const DEFAULT_LINKEDIN: LinkedInAccount = {
-  connected: false, name: null, memberId: null, connectedAt: null, demo: false,
+  connected: false, name: null, memberId: null, connectedAt: null,
 };
 const DEFAULT_YOUTUBE: YouTubeAccount = {
-  connected: false, channelTitle: null, channelId: null, connectedAt: null, demo: false,
+  connected: false, channelTitle: null, channelId: null, connectedAt: null,
 };
 const DEFAULT_CROSSPOST: CrossPostState = {
   enabled: false,

@@ -150,14 +150,14 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
           <button className="nav-item" onClick={() => (state.linkedin.connected ? go("settings") : setConnectOpen(true))}>
             <IconLinkedIn size={19} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {state.linkedin.connected ? (state.linkedin.demo ? "LinkedIn · demo" : "LinkedIn") : "Connect LinkedIn"}
+              {state.linkedin.connected ? "LinkedIn" : "Connect LinkedIn"}
             </span>
             {state.linkedin.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
           </button>
           <button className="nav-item" onClick={() => (state.youtube.connected ? go("settings") : setConnectOpen(true))}>
             <IconYouTube size={19} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {state.youtube.connected ? (state.youtube.demo ? "YouTube · demo" : "YouTube") : "Connect YouTube"}
+              {state.youtube.connected ? "YouTube" : "Connect YouTube"}
             </span>
             {state.youtube.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
           </button>
@@ -189,7 +189,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
               </span>
             )}
             {ig.connected ? (
-              <span className="pill ok"><span className="dot" /> {ig.demo ? "Demo" : ""} @{ig.username}</span>
+              <span className="pill ok"><span className="dot" /> @{ig.username}</span>
             ) : (
               <button className="btn sm subtle" onClick={() => setConnectOpen(true)}>
                 <IconLink size={15} /> Connect Instagram

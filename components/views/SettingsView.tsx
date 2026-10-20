@@ -131,7 +131,7 @@ export default function SettingsView({ onConnect, onAutomate }: { onConnect: () 
             </div>
             <div className="grow">
               <div style={{ fontWeight: 650 }}>@{ig.username}</div>
-              <div className="tiny muted">{ig.demo ? "Demo connection (simulated)" : `${ig.accountType || "Business"} account`}{ig.connectedAt ? ` · connected ${new Date(ig.connectedAt).toLocaleDateString()}` : ""}</div>
+              <div className="tiny muted">{`${ig.accountType || "Business"} account`}{ig.connectedAt ? ` · connected ${new Date(ig.connectedAt).toLocaleDateString()}` : ""}</div>
             </div>
             <span className="pill ok"><span className="dot" /> Connected</span>
             <button className="btn danger sm" onClick={disconnect}>Disconnect</button>
