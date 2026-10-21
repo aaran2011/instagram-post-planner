@@ -34,6 +34,44 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  // Backfill tool: schedule all past posts from a chosen date, one per day.
+  const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const ninetyAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 90); return ymd(d); })();
+  const [bfSince, setBfSince] = useState(ninetyAgo);
+  const [bfTime, setBfTime] = useState((state.settings.defaultTimes && state.settings.defaultTimes[0]) || "11:00");
+  const [bfLi, setBfLi] = useState(liConnected);
+  const [bfYt, setBfYt] = useState(ytConnected);
+  const [bfBusy, setBfBusy] = useState(false);
+  const [bfResult, setBfResult] = useState<string | null>(null);
+
+  async function runBackfill() {
+    if (!bfSince) { toast("Pick a start date", "err"); return; }
+    const dests = [...(bfLi ? ["linkedin"] : []), ...(bfYt ? ["youtube"] : [])];
+    if (!dests.length) { toast("Pick at least one destination", "err"); return; }
+    const sinceIso = new Date(`${bfSince}T00:00:00`).toISOString();
+    const [h, m] = (bfTime || "11:00").split(":").map((n) => parseInt(n, 10));
+    const f = new Date();
+    f.setHours(isNaN(h) ? 11 : h, isNaN(m) ? 0 : m, 0, 0);
+    if (f.getTime() < Date.now() + 5 * 60 * 1000) f.setDate(f.getDate() + 1); // first slot not in the past
+    setBfBusy(true);
+    setBfResult(null);
+    try {
+      const res = await api.post("/api/crosspost/backfill", { since: sinceIso, firstAt: f.toISOString(), destinations: dests });
+      if (res.error) { toast(res.error, "err"); return; }
+      setState(res);
+      if (res.scheduled > 0) {
+        const first = res.firstAt ? new Date(res.firstAt).toLocaleDateString() : "";
+        const last = res.lastAt ? new Date(res.lastAt).toLocaleDateString() : "";
+        setBfResult(`Scheduled ${res.scheduled} post${res.scheduled > 1 ? "s" : ""}, one per day — ${first} → ${last}.`);
+        toast(`Scheduled ${res.scheduled} post${res.scheduled > 1 ? "s" : ""}`, "ok");
+      } else {
+        setBfResult("No new posts found in that range (already reposted or already scheduled).");
+        toast("Nothing new to schedule", "info");
+      }
+    } catch (e: any) { toast(e.message || "Failed", "err"); }
+    finally { setBfBusy(false); }
+  }
+
   useEffect(() => {
     let alive = true;
     api.get("/api/crosspost/media")
@@ -74,7 +112,7 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
                 <b>Auto-repost new Instagram posts</b>
                 <p className="tiny muted mt8">
                   Reels/videos → LinkedIn + YouTube Shorts · Photos &amp; carousels → LinkedIn only.
-                  Nothing is changed — same video, music and caption. <b>At most one post per day</b>, within ~15 min; starts from now (no backfill).
+                  Nothing is changed — same video, music and caption. <b>At most one post per day</b>, within ~15 min. Applies to <i>new</i> posts; use “Schedule your past posts” below to catch up on older ones.
                 </p>
               </div>
               <ToggleSm on={cp.enabled} onChange={(v) => patchCrossPost({ enabled: v })} />
@@ -89,6 +127,46 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
                 <IconYouTube size={13} /> YouTube Shorts (reels)
               </label>
             </div>
+          </div>
+
+          {/* backfill: schedule all past posts from a date, one per day */}
+          <div className="card" style={{ padding: 16 }}>
+            <b>Schedule your past posts</b>
+            <p className="tiny muted mt8">
+              Pick a start date. Every Instagram post from that date up to today gets queued and reposted
+              <b> one per day</b> — oldest first. Reels → LinkedIn + YouTube; photos &amp; carousels → LinkedIn.
+            </p>
+            <div className="flex gap12 mt12 wrap" style={{ alignItems: "flex-end" }}>
+              <label className="stack" style={{ gap: 4 }}>
+                <span className="tiny muted">From date</span>
+                <input className="input" type="date" value={bfSince} max={ymd(new Date())}
+                  onChange={(e) => setBfSince(e.target.value)} style={{ height: 32, fontSize: 13 }} />
+              </label>
+              <label className="stack" style={{ gap: 4 }}>
+                <span className="tiny muted">Daily time</span>
+                <input className="input" type="time" value={bfTime}
+                  onChange={(e) => setBfTime(e.target.value)} style={{ height: 32, fontSize: 13, width: 120 }} />
+              </label>
+              <div className="flex gap12" style={{ alignItems: "center", paddingBottom: 6 }}>
+                <label className="flex gap6 tiny" style={{ cursor: liConnected ? "pointer" : "not-allowed", alignItems: "center", opacity: liConnected ? 1 : 0.5 }}>
+                  <input type="checkbox" checked={bfLi} disabled={!liConnected} onChange={(e) => setBfLi(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
+                  <IconLinkedIn size={13} /> LinkedIn
+                </label>
+                <label className="flex gap6 tiny" style={{ cursor: ytConnected ? "pointer" : "not-allowed", alignItems: "center", opacity: ytConnected ? 1 : 0.5 }}
+                  title="YouTube takes reels/videos only">
+                  <input type="checkbox" checked={bfYt} disabled={!ytConnected} onChange={(e) => setBfYt(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
+                  <IconYouTube size={13} /> YouTube
+                </label>
+              </div>
+              <div className="grow" />
+              <button className="btn primary sm" onClick={runBackfill} disabled={bfBusy} style={{ marginBottom: 2 }}>
+                {bfBusy ? <Spinner /> : "Schedule all"}
+              </button>
+            </div>
+            {bfResult && <div className="tiny mt12" style={{ color: "var(--success)" }}>{bfResult}</div>}
+            {!liConnected && !ytConnected && (
+              <div className="tiny muted mt8">Connect LinkedIn or YouTube first to use this.</div>
+            )}
           </div>
 
           {/* review + schedule specific posts */}

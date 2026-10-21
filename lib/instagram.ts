@@ -379,18 +379,12 @@ export interface IgMediaItem {
   children: { id: string; mediaType: "IMAGE" | "VIDEO"; mediaUrl: string | null }[];
 }
 
-export async function fetchRecentMedia(
-  accessToken: string, igUserId: string, limit = 25,
-): Promise<IgMediaItem[]> {
-  const res = await graphGet(`/${igUserId}/media`, {
-    access_token: accessToken,
-    fields:
-      "id,caption,media_type,media_product_type,permalink,timestamp,media_url,thumbnail_url," +
-      "children{id,media_type,media_url}",
-    limit: String(limit),
-  });
-  const data: any[] = Array.isArray(res?.data) ? res.data : [];
-  return data.map((m) => ({
+const MEDIA_FIELDS =
+  "id,caption,media_type,media_product_type,permalink,timestamp,media_url,thumbnail_url," +
+  "children{id,media_type,media_url}";
+
+function mapMedia(m: any): IgMediaItem {
+  return {
     id: String(m.id),
     caption: String(m.caption || ""),
     mediaType: (m.media_type as IgMediaItem["mediaType"]) || "IMAGE",
@@ -402,7 +396,57 @@ export async function fetchRecentMedia(
     children: Array.isArray(m.children?.data)
       ? m.children.data.map((c: any) => ({ id: String(c.id), mediaType: c.media_type, mediaUrl: c.media_url ?? null }))
       : [],
-  }));
+  };
+}
+
+export async function fetchRecentMedia(
+  accessToken: string, igUserId: string, limit = 25,
+): Promise<IgMediaItem[]> {
+  const res = await graphGet(`/${igUserId}/media`, {
+    access_token: accessToken,
+    fields: MEDIA_FIELDS,
+    limit: String(limit),
+  });
+  const data: any[] = Array.isArray(res?.data) ? res.data : [];
+  return data.map(mapMedia);
+}
+
+// Page back through the media edge (newest→oldest) collecting everything posted
+// at or after `sinceMs`. Stops as soon as a page reaches older items (the edge is
+// reverse-chronological) or hits the page/item caps. Used by the backfill tool.
+export async function fetchMediaSince(
+  accessToken: string, igUserId: string, sinceMs: number, hardCap = 300,
+): Promise<IgMediaItem[]> {
+  const out: IgMediaItem[] = [];
+  let res: any = await graphGet(`/${igUserId}/media`, {
+    access_token: accessToken,
+    fields: MEDIA_FIELDS,
+    limit: "50",
+  });
+  for (let page = 0; page < 10; page++) {
+    const data: any[] = Array.isArray(res?.data) ? res.data : [];
+    let reachedOld = false;
+    for (const m of data) {
+      const item = mapMedia(m);
+      const t = item.timestamp ? Date.parse(item.timestamp) : NaN;
+      if (!isNaN(t) && t < sinceMs) { reachedOld = true; continue; }
+      out.push(item);
+      if (out.length >= hardCap) return out;
+    }
+    const next = res?.paging?.next;
+    if (reachedOld || !next) break;
+    res = await graphGet(next, {});
+  }
+  return out;
+}
+
+// Fetch a single media item by id (fresh, time-limited media_url). Lets the
+// scheduler post a backfilled item that's older than the recent-media window.
+export async function fetchMediaById(accessToken: string, id: string): Promise<IgMediaItem | null> {
+  try {
+    const m = await graphGet(`/${id}`, { access_token: accessToken, fields: MEDIA_FIELDS });
+    return m?.id ? mapMedia(m) : null;
+  } catch { return null; }
 }
 
 async function waitForContainer(containerId: string, accessToken: string) {

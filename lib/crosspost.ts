@@ -1,6 +1,6 @@
 import { readAccount, updateAccount, listAccountIds } from "./db";
 import { newId } from "./api";
-import { fetchRecentMedia, type IgMediaItem } from "./instagram";
+import { fetchRecentMedia, fetchMediaSince, fetchMediaById, type IgMediaItem } from "./instagram";
 import { getValidLinkedInToken, getValidYouTubeToken, NEEDS_RECONNECT } from "./oauth";
 import { postImage, postMultiImage, postVideo, postText } from "./linkedin";
 import { uploadShort, QuotaError } from "./youtube";
@@ -190,7 +190,10 @@ async function processDueJobs(uid: string, now: Date): Promise<number> {
 
   let done = 0;
   for (const job of due.slice(0, MAX_JOBS_PER_TICK)) {
-    const item = items.find((it) => it.id === job.igId);
+    // Recent list first; fall back to a direct by-id fetch for backfilled items
+    // that are older than the recent-media window (also gives a fresh media_url).
+    let item = items.find((it) => it.id === job.igId) || null;
+    if (!item) item = await fetchMediaById(igToken, job.igId);
     if (!item) {
       await updateAccount(uid, (d) => { const j = d.crossPost.jobs.find((x) => x.id === job.id); if (j) j.status = "failed"; });
       continue;
@@ -287,4 +290,68 @@ export async function runOrScheduleItem(
     d.crossPost.log = [entry, ...d.crossPost.log].slice(0, 100);
   });
   return { scheduled: false, entry };
+}
+
+// Backfill: queue every Instagram post from `sinceMs` up to now, spaced ONE PER
+// DAY starting at `firstAtMs`. Oldest post goes first. YouTube is auto-dropped
+// for non-videos; items already reposted or already queued are skipped. The
+// existing scheduled-jobs pipeline (processDueJobs) posts each at its time.
+export interface BackfillResult {
+  scheduled: number; skipped: number; firstAt: string | null; lastAt: string | null; error?: string;
+}
+
+export async function scheduleBackfill(
+  uid: string, sinceMs: number, destinations: CrossPostDestination[], firstAtMs: number,
+): Promise<BackfillResult> {
+  const empty = { scheduled: 0, skipped: 0, firstAt: null, lastAt: null };
+  const db = await readAccount(uid);
+  if (!db?.instagram.connected || !db.secrets.instagramAccessToken || !db.instagram.igUserId) {
+    return { ...empty, error: "Instagram not connected" };
+  }
+  const wantLi = destinations.includes("linkedin") && db.linkedin.connected;
+  const wantYt = destinations.includes("youtube") && db.youtube.connected;
+  if (!wantLi && !wantYt) return { ...empty, error: "Pick a connected destination" };
+
+  const now = Date.now();
+  const media = await fetchMediaSince(db.secrets.instagramAccessToken, db.instagram.igUserId, sinceMs);
+
+  const reposted = new Set(db.crossPost.repostedIgIds);
+  const queued = new Set(db.crossPost.jobs.filter((j) => j.status === "scheduled").map((j) => j.igId));
+
+  const candidates = media
+    .filter((it) => it.timestamp && Date.parse(it.timestamp) >= sinceMs && Date.parse(it.timestamp) <= now)
+    .filter((it) => !reposted.has(it.id) && !queued.has(it.id))
+    .map((it) => {
+      const dests: CrossPostDestination[] = [
+        ...(wantLi ? (["linkedin"] as CrossPostDestination[]) : []),
+        ...(wantYt && it.mediaType === "VIDEO" ? (["youtube"] as CrossPostDestination[]) : []),
+      ];
+      return { it, dests };
+    })
+    .filter((c) => c.dests.length > 0)
+    .sort((a, b) => Date.parse(a.it.timestamp || "") - Date.parse(b.it.timestamp || "")); // oldest first
+
+  if (!candidates.length) return { ...empty, skipped: media.length };
+
+  const DAY = 24 * 3600 * 1000;
+  const base = Math.max(firstAtMs, now + 60_000); // never schedule in the past
+  const nowIso = new Date().toISOString();
+  let firstAt: string | null = null;
+  let lastAt: string | null = null;
+
+  await updateAccount(uid, (d) => {
+    const jobs = candidates.map((c, i) => {
+      const at = new Date(base + i * DAY).toISOString();
+      if (i === 0) firstAt = at;
+      lastAt = at;
+      return {
+        id: newId("xpost"), igId: c.it.id, mediaType: c.it.mediaType,
+        destinations: c.dests, caption: c.it.caption, thumbUrl: c.it.thumbnailUrl,
+        scheduledAt: at, status: "scheduled" as const, createdAt: nowIso,
+      };
+    });
+    d.crossPost.jobs = [...jobs, ...d.crossPost.jobs].slice(0, 400);
+  });
+
+  return { scheduled: candidates.length, skipped: media.length - candidates.length, firstAt, lastAt };
 }
