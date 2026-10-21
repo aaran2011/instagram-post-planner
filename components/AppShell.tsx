@@ -164,8 +164,9 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
           </button>
           <button className="nav-item" onClick={() => (state.youtube.connected ? go("settings") : setConnectOpen(true))}>
             <IconYouTube size={19} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {state.youtube.connected ? "YouTube" : "Connect YouTube"}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              title={state.youtube.channelTitle || undefined}>
+              {state.youtube.connected ? (state.youtube.channelTitle || "YouTube") : "Connect YouTube"}
             </span>
             {state.youtube.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
           </button>

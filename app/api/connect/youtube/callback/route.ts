@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { googleExchangeCode } from "@/lib/oauth";
+import { googleExchangeCode, googleUserinfo } from "@/lib/oauth";
 import { updateDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const tokens = await googleExchangeCode(code);
+    // Capture which Google account connected, to display it.
+    let who: string | null = null;
+    try { const info = await googleUserinfo(tokens.accessToken); who = info.email || info.name || null; } catch {}
     await updateDb((db) => {
-      db.youtube = { connected: true, channelTitle: null, channelId: null, connectedAt: new Date().toISOString() };
+      db.youtube = { connected: true, channelTitle: who, channelId: null, connectedAt: new Date().toISOString() };
       db.secrets.youtubeAccessToken = tokens.accessToken;
       if (tokens.refreshToken) db.secrets.youtubeRefreshToken = tokens.refreshToken;
       db.secrets.youtubeExpiresAt = tokens.expiresAt;

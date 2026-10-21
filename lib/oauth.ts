@@ -12,7 +12,8 @@ export const NEEDS_RECONNECT = "NEEDS_RECONNECT"; // thrown when a token can't b
 
 const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN = "https://oauth2.googleapis.com/token";
-const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.upload";
+// youtube.upload to post; openid/email/profile so we can show WHICH account connected.
+const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.upload openid email profile";
 
 export function googleAuthUrl(state: string): string {
   const p = new URLSearchParams({
@@ -21,11 +22,20 @@ export function googleAuthUrl(state: string): string {
     response_type: "code",
     scope: YOUTUBE_SCOPE,
     access_type: "offline", // ask for a refresh token
-    prompt: "consent", // force refresh token issuance every time
+    prompt: "select_account consent", // always show the account picker + consent
     include_granted_scopes: "true",
     state,
   });
   return `${GOOGLE_AUTH}?${p.toString()}`;
+}
+
+// Who did they connect? Uses the openid/email scopes (no YouTube read needed).
+export async function googleUserinfo(accessToken: string): Promise<{ email: string; name: string }> {
+  const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  const d = await res.json().catch(() => ({}));
+  return { email: String(d.email || ""), name: String(d.name || "") };
 }
 
 export interface GoogleTokens { accessToken: string; refreshToken: string | null; expiresAt: number; }

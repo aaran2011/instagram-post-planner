@@ -143,6 +143,19 @@
         "dev"
       ],
       "port": 4960
+    },
+    {
+      "name": "one-year-build",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--port",
+        "4961",
+        "--strictPort"
+      ],
+      "cwd": "one-year",
+      "port": 4961
     }
   ]
 }
