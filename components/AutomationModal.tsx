@@ -161,8 +161,14 @@ function ReviewRow({ item, liConnected, ytConnected, defaultWhen, onDone, onStat
       else {
         const e = res.entry || {};
         const ok = e.linkedin?.ok || e.youtube?.ok;
-        toast(ok ? "Posted" : "Couldn't post — check connections", ok ? "ok" : "err");
-        onDone(Boolean(ok));
+        if (ok) { toast("Posted ✓", "ok"); onDone(true); }
+        else {
+          const why =
+            (e.youtube && !e.youtube.ok && (e.youtube.error || e.youtube.skipped)) ||
+            (e.linkedin && !e.linkedin.ok && (e.linkedin.error || e.linkedin.skipped)) ||
+            "no destination handled this item";
+          toast("Couldn't post: " + why, "err");
+        }
       }
     } catch (e: any) { toast(e.message || "Failed", "err"); }
     finally { setBusy(false); }
