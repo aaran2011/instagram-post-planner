@@ -19,12 +19,20 @@ export const config = {
     // "Instagram API with Instagram Login" credentials (Instagram app id/secret).
     // No Facebook Page is required with this flow. META_* names are accepted as
     // a fallback for older configs.
-    appId: process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID || "",
+    //
+    // The Instagram app id is PUBLIC (it appears in the OAuth URL), so we pin it
+    // here to the app whose secret (INSTAGRAM_APP_SECRET) is configured in the
+    // host. This guards against a stale/edited INSTAGRAM_APP_ID in the host that
+    // no longer matches the stored secret — that mismatch is what surfaces as
+    // Instagram's "Insufficient developer role" at Connect time. To move to a
+    // different Instagram app, change this id AND the INSTAGRAM_APP_SECRET env
+    // var together so the pair always matches.
+    appId: "2157784201447457",
     appSecret: process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET || "",
     redirectUri:
       process.env.INSTAGRAM_REDIRECT_URI ||
       process.env.META_REDIRECT_URI ||
-      "http://localhost:4321/api/instagram/callback",
+      "https://instagram-post-planner.vercel.app/api/instagram/callback",
     // A long-lived Instagram token can be provided directly to skip OAuth.
     manualToken: process.env.IG_ACCESS_TOKEN || "",
     manualUserId: process.env.IG_USER_ID || "",

@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as _dt
+import hashlib
 import html
 import io
 import json
@@ -507,6 +508,18 @@ def _corner_cleanup(rgbi: np.ndarray, alpha: np.ndarray, page: np.ndarray) -> np
     return out
 
 
+def refine_alpha(lo_alpha: np.ndarray, hi_alpha: np.ndarray) -> np.ndarray:
+    """Low-res matte decides inside/outside; high-res matte only shapes the edge band."""
+    H, W = hi_alpha.shape
+    up = cv2.resize(lo_alpha, (W, H), interpolation=cv2.INTER_LINEAR).astype(np.float32) / 255
+    band = (up > 0.02) & (up < 0.98)
+    band = cv2.dilate(band.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+    out = (up >= 0.5).astype(np.float32)
+    hi = hi_alpha.astype(np.float32) / 255
+    out[band] = np.clip(hi[band], up[band] - 0.4, up[band] + 0.4)
+    return (np.clip(out, 0, 1) * 255).astype(np.uint8)
+
+
 def rembg_alpha(rgb: np.ndarray) -> np.ndarray | None:
     try:
         from rembg import new_session, remove
@@ -520,16 +533,34 @@ def rembg_alpha(rgb: np.ndarray) -> np.ndarray | None:
 
 
 def classify_art(rgb: np.ndarray, alpha: np.ndarray, mode: str) -> str:
-    """'art' (flat cartoon colours) or 'photo' - picks the upscaling model."""
+    """'art' (drawn: flat fills, ink outlines) or 'photo' - picks the upscaling model.
+
+    Two cues measured on the subject: how well a 16-colour palette reproduces
+    its smooth areas (drawings ~0-5, photos ~5-15), and how many strong edges
+    are thin dark ink lines (cartoons 0.2-0.8, photos under 0.15). Wrongly
+    calling a photo 'art' paints it like an anime frame, so ties go to 'photo'.
+    """
     if mode == "none":
         return "photo"
-    px = rgb[alpha > 128]
-    if len(px) < 50:
+    fg = cv2.erode((alpha > 128).astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+    if fg.sum() < 200:
         return "art"
-    q = (px // 24).astype(np.int32)
-    keys = q[:, 0] * 256 + q[:, 1] * 16 + q[:, 2]
-    counts = np.sort(np.unique(keys, return_counts=True)[1])[::-1]
-    return "art" if counts[:12].sum() / counts.sum() >= 0.72 else "photo"
+    sm = cv2.bilateralFilter(np.ascontiguousarray(rgb), 5, 30, 5)
+    q = np.asarray(Image.fromarray(sm).quantize(16, method=Image.MEDIANCUT, dither=Image.Dither.NONE)
+                   .convert("RGB")).astype(np.float32)
+    err = np.abs(q - sm.astype(np.float32)).max(2)
+    g = cv2.cvtColor(sm, cv2.COLOR_RGB2GRAY)
+    gf = g.astype(np.float32)
+    grad = cv2.magnitude(cv2.Sobel(gf, cv2.CV_32F, 1, 0), cv2.Sobel(gf, cv2.CV_32F, 0, 1))
+    smooth = fg & (grad < 40)
+    qerr = float(np.median(err[smooth])) if smooth.sum() > 100 else 0.0
+    ink = (cv2.morphologyEx(g, cv2.MORPH_BLACKHAT, np.ones((5, 5), np.uint8)) > 50) & (g < 90)
+    strong = fg & (grad > 120)
+    outline = float(cv2.dilate(ink.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)[strong].mean()) \
+        if strong.sum() > 50 else 0.0
+    if qerr <= 1 or (qerr <= 5 and outline >= 0.2) or (qerr <= 9 and outline >= 0.3):
+        return "art"
+    return "photo"
 
 
 def blur_score(rgb: np.ndarray, alpha: np.ndarray) -> float:
@@ -772,17 +803,33 @@ def run(args) -> int:
                 continue
             in_dir, out_dir = work / f"up_in_{kind}", work / f"up_out_{kind}"
             in_dir.mkdir(exist_ok=True)
+            out_dir.mkdir(exist_ok=True)
+            # Cache upscales by crop content so re-runs skip the slow GPU step
+            cache = HERE / ".cache" / "upscale" / model
+            cache.mkdir(parents=True, exist_ok=True)
+            fresh = 0
             for t in group:
-                shutil.copy2(t["crop"], in_dir / Path(t["crop"]).name)
-            try:
-                realesrgan_batch(upscaler[0], upscaler[1], model, in_dir, out_dir, len(group))
-            except Exception as e:
-                log.error("AI upscaling failed (%s) - using Lanczos for these %d images", e, len(group))
+                t["crop_hash"] = hashlib.sha1(Path(t["crop"]).read_bytes()).hexdigest()
+                hit = cache / f"{t['crop_hash']}.png"
+                if hit.exists():
+                    shutil.copy2(hit, out_dir / Path(t["crop"]).name)
+                else:
+                    shutil.copy2(t["crop"], in_dir / Path(t["crop"]).name)
+                    fresh += 1
+            log.info("%s: %d to upscale, %d from cache", model, fresh, len(group) - fresh)
+            if fresh:
+                try:
+                    realesrgan_batch(upscaler[0], upscaler[1], model, in_dir, out_dir, fresh)
+                except Exception as e:
+                    log.error("AI upscaling failed (%s) - using Lanczos for the rest", e)
             for t in group:
                 p = out_dir / Path(t["crop"]).name
                 if p.exists():
+                    shutil.copy2(p, cache / f"{t['crop_hash']}.png")
                     t["upscaled"] = str(p)
                     t["upscale_method"] = f"Real-ESRGAN {model} x4"
+                    if kind == "photo" and args.photo_ai < 1:
+                        t["upscale_method"] += f", blended {args.photo_ai:.0%} with Lanczos to keep photo texture"
 
     # ---- 4/5. matte + export
     exported = []
@@ -917,9 +964,15 @@ def prepare_tile(rec: dict, tile: np.ndarray, page, crops_dir: Path, args) -> No
 
 
 def finish_tile(rec: dict, work: Path, args) -> None:
-    src = Image.open(rec.get("upscaled") or rec["crop"]).convert("RGB")
+    lo = Image.open(rec["crop"]).convert("RGB")
+    src = Image.open(rec["upscaled"]).convert("RGB") if rec.get("upscaled") else lo
+    if rec.get("upscaled") and rec["kind"] == "photo" and args.photo_ai < 1:
+        # Real-ESRGAN repaints low-res photo detail (skin, fur) as smooth
+        # strokes; mixing in a plain resample brings back the real texture.
+        soft = lanczos_upscale(lo, src.width / lo.width).resize(src.size, Image.LANCZOS)
+        src = Image.blend(soft, src, args.photo_ai)
     if rec.get("upscale") and not rec.get("upscaled"):
-        src = lanczos_upscale(src, min(4.0, max(1.0, rec["needed_scale"] * 1.1)))
+        src = lanczos_upscale(lo, min(4.0, max(1.0, rec["needed_scale"] * 1.1)))
         rec["upscale_method"] = "Lanczos + unsharp (AI upscaler unavailable)"
     rgb = np.asarray(src)
     page = np.array(rec["page"]) if rec.get("page") else None
@@ -928,6 +981,13 @@ def finish_tile(rec: dict, work: Path, args) -> None:
         alpha = np.asarray(a)
     else:
         alpha, rgb, info = make_alpha(rgb, page)
+        if src.size != lo.size:
+            # Which pixels are background is decided at the original resolution,
+            # where colours are faithful (upscalers can melt a white subject into a
+            # near-white tile and let the fill leak in); the upscaled pass only
+            # sharpens the edge.
+            lo_alpha, _, _ = make_alpha(np.asarray(lo), page)
+            alpha = refine_alpha(lo_alpha, alpha)
     if rec.get("full_frame"):
         if args.bg == "rembg":
             ra = rembg_alpha(rgb)
@@ -978,7 +1038,8 @@ def write_reports(out: Path, sources, tiles, skipped, upscaler, args, secs) -> s
         "tiles found": len(tiles),
         "stickers exported": count(lambda t: t["status"] == "exported"),
         "upscaled with AI (Real-ESRGAN)": count(lambda t: "Real-ESRGAN" in t.get("upscale_method", "")),
-        "upscaled with Lanczos fallback": count(lambda t: "Lanczos" in t.get("upscale_method", "")),
+        "upscaled with Lanczos fallback": count(lambda t: "unavailable" in t.get("upscale_method", "")),
+        "photo upscales blended for texture": count(lambda t: "blended" in t.get("upscale_method", "")),
         "background removed": count(lambda t: t.get("bg_info", {}).get("mode") == "colour-key"),
         "photo backgrounds kept": count(lambda t: t.get("full_frame") and t["status"] in ("exported", "duplicate")),
         "duplicates set aside": count(lambda t: t["status"] == "duplicate"),
@@ -1073,6 +1134,9 @@ def main(argv=None) -> int:
     ap.add_argument("--bg", choices=["auto", "rembg", "none"], default="auto",
                     help="auto: key out flat tile backgrounds, keep photo backgrounds; "
                          "rembg: also AI-cut-out full-frame photos; none: keep every background")
+    ap.add_argument("--photo-ai", type=float, default=0.5, metavar="0..1",
+                    help="how much of the AI upscale to use for photo stickers, rest is plain Lanczos "
+                         "(default 0.5; cartoons always use 1.0)")
     ap.add_argument("--margin", type=int, default=16, help="transparent margin inside 512x512 (default 16)")
     ap.add_argument("--no-pad", action="store_true", help="don't pad to a 512x512 square (longest side 512)")
     ap.add_argument("--no-webp", action="store_true", help="skip the WhatsApp .webp copies")

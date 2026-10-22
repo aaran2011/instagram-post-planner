@@ -56,6 +56,7 @@ python3 sticker_pipeline.py INPUT -o ~/Desktop/my-stickers
 | `-o DIR` | `output/stickers-<timestamp>` | where results go (must not be inside the input folder) |
 | `--upscaler auto\|realesrgan\|lanczos` | `auto` | `realesrgan` fails loudly if the AI upscaler is missing |
 | `--bg auto\|rembg\|none` | `auto` | `auto`: remove flat tile/card backgrounds, keep photo backgrounds. `rembg`: also AI-cut-out photos. `none`: keep every background |
+| `--photo-ai 0..1` | `0.5` | share of the AI upscale used for **photo** stickers; the rest is a plain resample, which keeps real skin/fur texture. Cartoons always get the full AI result |
 | `--margin N` | `16` | transparent margin inside the 512×512 canvas (WhatsApp recommends ~16 px) |
 | `--no-pad` | off | longest side 512 instead of a padded 512×512 square |
 | `--no-webp` | off | skip the `.webp` copies |
@@ -64,6 +65,11 @@ python3 sticker_pipeline.py INPUT -o ~/Desktop/my-stickers
 
 Progress bars show each stage; a summary prints at the end. Errors on one image
 are logged and the batch carries on.
+
+Speed: on an M1, AI upscaling is ~2–3 s per sticker on the GPU (a 375-sticker
+batch takes ~15–20 min); everything else takes about a minute. Upscales are
+cached in `.cache/` by image content, so re-running the same inputs (e.g. with
+different `--margin` or `--bg`) skips the GPU step.
 
 ## 4. Download the result
 
@@ -122,8 +128,11 @@ photos keep their background unless you pass `--bg rembg`.
 **Upscaling.** If the subject is smaller than the 480 px it needs (512 minus
 margins), or is blurry, it goes through Real-ESRGAN ×4 — the *anime* model for
 flat cartoon art, the *x4plus* model for photos (chosen per sticker) — then is
-scaled down to exactly fit. Upscaling happens before background removal, so
-the cut-out is made at high resolution with clean edges. Sources needing more
+scaled down to exactly fit. For photos the AI result is blended 50/50 with a
+plain resample (`--photo-ai`), because Real-ESRGAN tends to repaint low-res
+fur and skin as smooth brush strokes. Which pixels are background is decided at
+the original resolution (upscalers can blend a white subject into a near-white
+tile); the upscaled image is then used only to sharpen the cut-out edge. Sources needing more
 than ×6 are flagged as very low resolution.
 
 **Duplicates.** Overlapping screenshots repeat stickers. Candidates are found
