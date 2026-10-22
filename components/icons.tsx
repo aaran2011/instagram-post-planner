@@ -115,29 +115,24 @@ export const IconArrowUp = (p: P) => (<S {...p}><path d="M12 19V5M6 11l6-6 6 6" 
 export const IconArrowDown = (p: P) => (<S {...p}><path d="M12 5v14M6 13l6 6 6-6" /></S>);
 
 // ---- Brand logo ----
-// Original mark: a rounded "aperture" (photography) whose blades double as a
-// scheduling ring, with a calendar notch at the top. Matte gradient, no glow.
+// "Solstice" mark: a warm sunset-gradient squircle with a four-point bloom /
+// spark and a small companion sparkle. Editorial, bright, optimistic.
 export const Logo = ({ size = 30 }: { size?: number }) => {
   const id = "planlogo";
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id={`${id}-g`} x1="6" y1="6" x2="42" y2="42" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#7c8bff" />
-          <stop offset="1" stopColor="#5468f0" />
+        <linearGradient id={`${id}-g`} x1="4" y1="5" x2="44" y2="43" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ff9a3d" />
+          <stop offset="0.52" stopColor="#ff4d6d" />
+          <stop offset="1" stopColor="#d6336c" />
         </linearGradient>
       </defs>
-      <rect x="3" y="3" width="42" height="42" rx="13" fill={`url(#${id}-g)`} />
-      {/* aperture blades */}
-      <g stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.96">
-        <circle cx="24" cy="24" r="11" />
-        <path d="M24 13 L30 20.5 L18 20.5 Z" fill="#fff" stroke="none" opacity="0.14" />
-        <path d="M24 24 L24 13" />
-        <path d="M24 24 L33.5 29.5" />
-        <path d="M24 24 L14.5 29.5" />
-      </g>
-      {/* scheduling dot */}
-      <circle cx="24" cy="24" r="2.6" fill="#fff" />
+      <rect x="3" y="3" width="42" height="42" rx="15" fill={`url(#${id}-g)`} />
+      {/* four-point bloom */}
+      <path d="M23.5 9 C24.7 19.6 27.9 22.8 38.5 24 C27.9 25.2 24.7 28.4 23.5 39 C22.3 28.4 19.1 25.2 8.5 24 C19.1 22.8 22.3 19.6 23.5 9 Z" fill="#fff" />
+      {/* companion sparkle */}
+      <path d="M35.5 10.5 C35.9 13.6 36.4 14.1 39.5 14.5 C36.4 14.9 35.9 15.4 35.5 18.5 C35.1 15.4 34.6 14.9 31.5 14.5 C34.6 14.1 35.1 13.6 35.5 10.5 Z" fill="#fff" opacity="0.8" />
     </svg>
   );
 };
