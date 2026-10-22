@@ -47,6 +47,8 @@ export async function buildClientState() {
       lastRepostAt: db.crossPost.lastRepostAt,
       log: db.crossPost.log.slice(0, 20),
       jobs: db.crossPost.jobs.slice(0, 50),
+      driveMirror: db.crossPost.driveMirror,
+      driveFolderLink: db.crossPost.driveFolderLink,
     },
     editStyle: db.editStyle ?? null,
     config: configStatus(),

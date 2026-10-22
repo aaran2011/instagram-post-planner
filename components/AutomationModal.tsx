@@ -43,6 +43,18 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
   const [bfYt, setBfYt] = useState(ytConnected);
   const [bfBusy, setBfBusy] = useState(false);
   const [bfResult, setBfResult] = useState<string | null>(null);
+  const [driveBusy, setDriveBusy] = useState(false);
+
+  async function setupDrive(enable: boolean) {
+    setDriveBusy(true);
+    try {
+      const res = await api.post("/api/connect/drive/setup", { enabled: enable });
+      if (res.error) { toast(res.error, "err"); return; }
+      setState(res);
+      toast(enable ? "Drive folder ready" : "Drive mirror turned off", "ok");
+    } catch (e: any) { toast(e.message || "Failed", "err"); }
+    finally { setDriveBusy(false); }
+  }
 
   async function runBackfill() {
     if (!bfSince) { toast("Pick a start date", "err"); return; }
@@ -171,6 +183,41 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
             {!liConnected && !ytConnected && (
               <div className="tiny muted mt8">Connect LinkedIn or YouTube first to use this.</div>
             )}
+          </div>
+
+          {/* Images → Google Drive → LinkedIn (routes around LinkedIn's blocked API) */}
+          <div className="card" style={{ padding: 16 }}>
+            <div className="flex gap12">
+              <div className="grow">
+                <b>Images → Google Drive → LinkedIn</b>
+                <p className="tiny muted mt8">
+                  Since LinkedIn can't be connected directly yet, the app mirrors every <b>image</b> it publishes to
+                  Instagram into a Google Drive folder — <b>full quality, exact caption</b> kept as the file's description.
+                  You wire that folder to LinkedIn once with a free connector, and images post themselves. Uses your Google
+                  (YouTube) connection.
+                </p>
+              </div>
+              <ToggleSm on={cp.driveMirror} onChange={(v) => setupDrive(v)} />
+            </div>
+
+            {cp.driveMirror && cp.driveFolderLink && (
+              <div className="mt12 stack gap8">
+                <div className="flex gap8 wrap" style={{ alignItems: "center" }}>
+                  <span className="pill ok"><span className="dot" /> Folder ready</span>
+                  <a className="btn subtle sm" href={cp.driveFolderLink} target="_blank" rel="noreferrer">Open Drive folder →</a>
+                </div>
+                <div className="tiny muted" style={{ lineHeight: 1.6 }}>
+                  <b>One-time: connect the folder to LinkedIn (free).</b> In <b>Zapier</b> or <b>Make.com</b>, create:
+                  <br />• Trigger: <b>Google Drive → New File in Folder</b> (pick this folder).
+                  <br />• Action: <b>LinkedIn → Create Share/Post</b> — attach the file, and map the file's <b>Description</b> to the post text.
+                  <br />Turn it on, and new images post to LinkedIn automatically with their caption.
+                </div>
+              </div>
+            )}
+            {!ytConnected && (
+              <div className="tiny muted mt8">Connect YouTube (Google) first — the Drive folder uses that same Google account.</div>
+            )}
+            {driveBusy && <div className="flex gap8 tiny muted mt8"><Spinner /> Setting up…</div>}
           </div>
 
           {/* review + schedule specific posts */}

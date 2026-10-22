@@ -36,6 +36,7 @@ const DEFAULT_CROSSPOST: CrossPostState = {
   enabled: false,
   destinations: { linkedin: true, youtube: true },
   repostedIgIds: [], log: [], baselineAt: null, lastSyncAt: null, lastRepostAt: null, jobs: [],
+  driveMirror: false, driveFolderId: null, driveFolderLink: null,
 };
 const DEFAULT_SECRETS = {
   instagramAccessToken: null, linkedinAccessToken: null, linkedinExpiresAt: null,

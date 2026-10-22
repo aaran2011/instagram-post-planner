@@ -144,6 +144,7 @@ export interface CrossPostLogEntry {
   caption?: string;
   linkedin?: { ok: boolean; id?: string; error?: string; skipped?: string };
   youtube?: { ok: boolean; id?: string; error?: string; skipped?: string };
+  drive?: { ok: boolean; count?: number; error?: string };
 }
 
 // A specific Instagram item the user chose (in the Automation builder) to
@@ -173,6 +174,12 @@ export interface CrossPostState {
   lastSyncAt: string | null; // throttle marker
   lastRepostAt: string | null; // last auto-repost time (enforces 1/day)
   jobs: CrossPostJob[]; // explicit user-scheduled cross-posts
+  // Google Drive mirror: when the app publishes an IMAGE post, also upload the
+  // image (full quality + caption) to a Drive folder the user wires to LinkedIn
+  // via a free connector (Zapier/Make). Routes around LinkedIn's blocked API.
+  driveMirror: boolean;
+  driveFolderId: string | null;
+  driveFolderLink: string | null;
 }
 
 // One account's private data. Each app account (User) owns an isolated copy —

@@ -17,6 +17,8 @@ export interface ClientCrossPost {
   lastRepostAt: string | null;
   log: CrossPostLogEntry[];
   jobs: CrossPostJob[];
+  driveMirror: boolean;
+  driveFolderLink: string | null;
 }
 
 export interface ClientMedia {

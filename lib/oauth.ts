@@ -12,8 +12,11 @@ export const NEEDS_RECONNECT = "NEEDS_RECONNECT"; // thrown when a token can't b
 
 const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN = "https://oauth2.googleapis.com/token";
-// youtube.upload to post; openid/email/profile so we can show WHICH account connected.
-const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.upload openid email profile";
+// youtube.upload to post Shorts; drive.file to mirror images into a Drive folder
+// the app creates (app-scoped — it can't see the user's other files);
+// openid/email/profile so we can show WHICH account connected.
+const YOUTUBE_SCOPE =
+  "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/drive.file openid email profile";
 
 export function googleAuthUrl(state: string): string {
   const p = new URLSearchParams({
