@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TV Home</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- The big cinematic picture behind everything. Two layers so we can cross-fade. -->
+  <div class="hero" id="hero">
+    <div class="hero-art show" id="heroArtA"></div>
+    <div class="hero-art" id="heroArtB"></div>
+    <div class="hero-shade"></div>
+  </div>
+
+  <!-- Top bar: the menu and a clock -->
+  <header class="topbar">
+    <nav class="nav" data-row="nav">
+      <button class="nav-item focusable active" data-action="section" data-section="home">Home</button>
+      <button class="nav-item focusable" data-action="section" data-section="movies">Movies</button>
+      <button class="nav-item focusable" data-action="section" data-section="tv">TV Shows</button>
+      <button class="nav-item focusable" data-action="section" data-section="settings">Settings</button>
+    </nav>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <!-- Everything that scrolls -->
+  <main class="main" id="main">
+    <section class="hero-info" id="heroInfo">
+      <p class="eyebrow" id="heroEyebrow"></p>
+      <h1 class="hero-title" id="heroTitle"></h1>
+      <p class="hero-meta" id="heroMeta"></p>
+      <p class="hero-desc" id="heroDesc"></p>
+      <div class="hero-buttons" data-row="hero" id="heroButtons">
+        <button class="btn btn-primary focusable" data-action="play">&#9654;&nbsp; Play</button>
+        <button class="btn focusable" data-action="info">More Info</button>
+      </div>
+    </section>
+
+    <!-- Rows of tiles get drawn in here by app.js -->
+    <div id="rows"></div>
+  </main>
+
+  <!-- Pop-up message (for "Opening Netflix…" etc.) -->
+  <div class="overlay" id="overlay" aria-hidden="true">
+    <div class="overlay-panel">
+      <div class="overlay-art" id="overlayArt"></div>
+      <h2 class="overlay-title" id="overlayTitle"></h2>
+      <p class="overlay-text" id="overlayText"></p>
+      <div data-row="overlay">
+        <button class="btn btn-primary focusable" data-action="close">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help text at the bottom -->
+  <div class="hint">Arrow keys to move &nbsp;·&nbsp; Enter to select &nbsp;·&nbsp; Esc to go back</div>
+
+  <script src="app.js"></script>
+</body>
+</html>

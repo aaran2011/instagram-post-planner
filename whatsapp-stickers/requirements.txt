@@ -1,0 +1,7 @@
+pillow>=9.5
+numpy>=1.23
+opencv-python-headless>=4.7
+tqdm>=4.60
+# optional:
+#   rembg + onnxruntime  -> AI cut-out of full-frame photo stickers (--bg rembg); ./setup.sh --with-rembg
+#   pillow-heif          -> iPhone .heic input

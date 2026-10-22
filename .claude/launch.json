@@ -156,6 +156,16 @@
       ],
       "cwd": "one-year",
       "port": 4961
+    },
+    {
+      "name": "tv-home",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "const h=require('http'),f=require('fs'),p=require('path');const t={'.html':'text/html','.css':'text/css','.js':'text/javascript'};h.createServer((q,r)=>{const u=decodeURIComponent(q.url.split('?')[0]);const x=p.join(process.cwd(),u==='/'?'index.html':u);f.readFile(x,(e,b)=>{if(e){r.writeHead(404);return r.end('not found')}r.writeHead(200,{'Content-Type':t[p.extname(x)]||'application/octet-stream'});r.end(b)})}).listen(process.env.PORT||5050)"
+      ],
+      "port": 5050,
+      "cwd": "tv-home"
     }
   ]
 }
