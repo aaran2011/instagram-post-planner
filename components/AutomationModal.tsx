@@ -59,14 +59,17 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
       const res = await api.post("/api/crosspost/backfill", { since: sinceIso, firstAt: f.toISOString(), destinations: dests });
       if (res.error) { toast(res.error, "err"); return; }
       setState(res);
+      // One action covers BOTH past and future: also switch on the standing
+      // auto-repost rule so everything posted from now on is reposted too.
+      await patchCrossPost({ enabled: true, destinations: { linkedin: bfLi, youtube: bfYt } });
       if (res.scheduled > 0) {
         const first = res.firstAt ? new Date(res.firstAt).toLocaleDateString() : "";
         const last = res.lastAt ? new Date(res.lastAt).toLocaleDateString() : "";
-        setBfResult(`Scheduled ${res.scheduled} post${res.scheduled > 1 ? "s" : ""}, one per day — ${first} → ${last}.`);
-        toast(`Scheduled ${res.scheduled} post${res.scheduled > 1 ? "s" : ""}`, "ok");
+        setBfResult(`Scheduled ${res.scheduled} past post${res.scheduled > 1 ? "s" : ""}, one per day — ${first} → ${last}. Auto-repost is now ON for new posts too.`);
+        toast(`Scheduled ${res.scheduled} post${res.scheduled > 1 ? "s" : ""} + turned on auto-repost`, "ok");
       } else {
-        setBfResult("No new posts found in that range (already reposted or already scheduled).");
-        toast("Nothing new to schedule", "info");
+        setBfResult("No past posts to schedule in that range — but auto-repost is now ON, so everything you post from now on will be reposted.");
+        toast("Auto-repost turned on", "ok");
       }
     } catch (e: any) { toast(e.message || "Failed", "err"); }
     finally { setBfBusy(false); }
@@ -129,12 +132,13 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          {/* backfill: schedule all past posts from a date, one per day */}
-          <div className="card" style={{ padding: 16 }}>
-            <b>Schedule your past posts</b>
+          {/* backfill + standing rule in one action: from a date, past AND future */}
+          <div className="card" style={{ padding: 16, borderColor: "var(--accent)" }}>
+            <b>Repost everything from a date onward</b>
             <p className="tiny muted mt8">
               Pick a start date. Every Instagram post from that date up to today gets queued and reposted
-              <b> one per day</b> — oldest first. Reels → LinkedIn + YouTube; photos &amp; carousels → LinkedIn.
+              <b> one per day</b> (oldest first), <b>and</b> everything you post from now on is auto‑reposted too — one action covers past &amp; future.
+              Reels/videos → LinkedIn + YouTube Shorts; photos &amp; carousels → LinkedIn only (YouTube can't take images). Captions, video &amp; music are never changed.
             </p>
             <div className="flex gap12 mt12 wrap" style={{ alignItems: "flex-end" }}>
               <label className="stack" style={{ gap: 4 }}>
@@ -160,7 +164,7 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
               </div>
               <div className="grow" />
               <button className="btn primary sm" onClick={runBackfill} disabled={bfBusy} style={{ marginBottom: 2 }}>
-                {bfBusy ? <Spinner /> : "Schedule all"}
+                {bfBusy ? <Spinner /> : "Start reposting"}
               </button>
             </div>
             {bfResult && <div className="tiny mt12" style={{ color: "var(--success)" }}>{bfResult}</div>}
