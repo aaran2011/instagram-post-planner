@@ -6,7 +6,7 @@ import { api } from "./store";
 import { AppProvider, useApp, View } from "./ui";
 import {
   IconUpload, IconGrid, IconCalendar, IconRocket, IconBolt, IconSettings,
-  IconInstagram, IconLogout, IconMenu, IconCheck, IconAlert, IconLink,
+  IconInstagram, IconMenu, IconCheck, IconAlert, IconLink,
   IconWand, IconFilm, IconLinkedIn, IconYouTube, Logo,
 } from "./icons";
 import UploadView from "./views/UploadView";
@@ -28,10 +28,11 @@ interface Toast { id: number; msg: string; type: "ok" | "err" | "info"; }
 export default function AppShell({ initial, email }: { initial: ClientState; email: string }) {
   const router = useRouter();
   const [state, setState] = useState<ClientState>(initial);
-  const [view, setView] = useState<View>(initial.posts.length ? "plan" : "upload");
+  const [view, setView] = useState<View>("calendar"); // always land on the calendar
   const [openPostId, setOpenPostId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false); // desktop sidebar hide/show
   const [connectOpen, setConnectOpen] = useState(false);
   const [growthOpen, setGrowthOpen] = useState(false);
   const [automationOpen, setAutomationOpen] = useState(false);
@@ -103,7 +104,6 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
   }
 
   const ig = state.instagram;
-  const connectedCount = [state.instagram.connected, state.linkedin.connected, state.youtube.connected].filter(Boolean).length;
   const counts = {
     media: state.media.length,
     posts: state.posts.length,
@@ -117,13 +117,12 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
     { key: "plan", label: "Your Plan", icon: <IconGrid size={19} />, badge: counts.posts || undefined },
     { key: "calendar", label: "Calendar", icon: <IconCalendar size={19} /> },
     { key: "review", label: "Review", icon: <IconRocket size={19} /> },
-    { key: "automation", label: "Automation", icon: <IconBolt size={19} />, badge: counts.scheduled || undefined },
     { key: "settings", label: "Settings", icon: <IconSettings size={19} /> },
   ];
 
   return (
     <AppProvider value={ctx}>
-      <div className="app">
+      <div className={`app ${collapsed ? "collapsed" : ""}`}>
         {sidebarOpen && <div className="scrim" onClick={() => setSidebarOpen(false)} />}
         <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
           <button
@@ -152,7 +151,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {ig.connected ? `@${ig.username}` : "Connect Instagram"}
             </span>
-            {ig.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
+            <span className={`conn-switch ${ig.connected ? "on" : ""}`} aria-hidden><i /></span>
           </button>
 
           <button className="nav-item" onClick={() => (state.linkedin.connected ? go("settings") : setConnectOpen(true))}>
@@ -160,7 +159,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {state.linkedin.connected ? "LinkedIn" : "Connect LinkedIn"}
             </span>
-            {state.linkedin.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
+            <span className={`conn-switch ${state.linkedin.connected ? "on" : ""}`} aria-hidden><i /></span>
           </button>
           <button className="nav-item" onClick={() => (state.youtube.connected ? go("settings") : setConnectOpen(true))}>
             <IconYouTube size={19} />
@@ -168,12 +167,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
               title={state.youtube.channelTitle || undefined}>
               {state.youtube.connected ? (state.youtube.channelTitle || "YouTube") : "Connect YouTube"}
             </span>
-            {state.youtube.connected && <span className="badge" style={{ background: "var(--success)", color: "#fff", borderColor: "transparent" }}>●</span>}
-          </button>
-
-          <button className="nav-item" onClick={logout}>
-            <IconLogout size={19} />
-            <span>Log out</span>
+            <span className={`conn-switch ${state.youtube.connected ? "on" : ""}`} aria-hidden><i /></span>
           </button>
         </aside>
 
@@ -182,13 +176,19 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
             <button className="btn ghost sm menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Menu">
               <IconMenu size={20} />
             </button>
-            <div className="title">{navItems.find((n) => n.key === view)?.label}</div>
+            <button
+              className="btn ghost sm collapse-btn"
+              onClick={() => setCollapsed((c) => !c)}
+              aria-label={collapsed ? "Show sidebar" : "Hide sidebar"}
+              title={collapsed ? "Show sidebar" : "Hide sidebar"}
+            >
+              <IconMenu size={19} />
+            </button>
+            <div className="title">{navItems.find((n) => n.key === view)?.label || "Automation"}</div>
             <div className="spacer" />
-            {connectedCount >= 2 && (
-              <button className="btn subtle sm" onClick={() => setAutomationOpen(true)}>
-                <IconBolt size={15} /> Automation
-              </button>
-            )}
+            <button className="btn subtle sm" onClick={() => setAutomationOpen(true)}>
+              <IconBolt size={15} /> Automation
+            </button>
             <button className="btn subtle sm" onClick={() => setGrowthOpen(true)}>
               <IconSparkle size={15} /> Grow followers
             </button>
@@ -214,7 +214,7 @@ export default function AppShell({ initial, email }: { initial: ClientState; ema
             {view === "calendar" && <CalendarView />}
             {view === "review" && <ReviewView onConnect={() => setConnectOpen(true)} />}
             {view === "automation" && <AutomationView />}
-            {view === "settings" && <SettingsView onConnect={() => setConnectOpen(true)} onAutomate={() => setAutomationOpen(true)} />}
+            {view === "settings" && <SettingsView onConnect={() => setConnectOpen(true)} onAutomate={() => setAutomationOpen(true)} onLogout={logout} />}
           </div>
         </div>
       </div>

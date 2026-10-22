@@ -3,9 +3,9 @@ import React, { useState } from "react";
 import { useApp, Spinner } from "../ui";
 import { api } from "../store";
 import { tzListWith } from "../tz";
-import { IconInstagram, IconCheck, IconAlert, IconPlus, IconClose, IconSparkle, IconWand, IconTrash, IconLinkedIn, IconYouTube, IconBolt } from "../icons";
+import { IconInstagram, IconCheck, IconAlert, IconPlus, IconClose, IconSparkle, IconWand, IconTrash, IconLinkedIn, IconYouTube, IconBolt, IconLogout } from "../icons";
 
-export default function SettingsView({ onConnect, onAutomate }: { onConnect: () => void; onAutomate?: () => void }) {
+export default function SettingsView({ onConnect, onAutomate, onLogout }: { onConnect: () => void; onAutomate?: () => void; onLogout?: () => void }) {
   const { state, setState, toast, go } = useApp();
   const connectedCount = [state.instagram.connected, state.linkedin.connected, state.youtube.connected].filter(Boolean).length;
   const s = state.settings;
@@ -117,6 +117,10 @@ export default function SettingsView({ onConnect, onAutomate }: { onConnect: () 
     <div style={{ maxWidth: 720 }} className="stack gap24">
       <div className="sectionhead" style={{ marginBottom: 0 }}>
         <div className="htext"><h1>Settings</h1><p className="muted tiny">Your account, time zone and content preferences.</p></div>
+        <div className="spacer" />
+        {onLogout && (
+          <button className="btn subtle sm" onClick={onLogout}><IconLogout size={15} /> Log out</button>
+        )}
       </div>
 
       {/* Instagram */}

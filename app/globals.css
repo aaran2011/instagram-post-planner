@@ -465,3 +465,27 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 
 /* keep IG preview frame light */
 .igpost { color: #111; }
+
+/* ---------- Connection toggle indicator (sidebar) ---------- */
+.conn-switch {
+  width: 32px; height: 18px; border-radius: 999px; background: var(--border-strong);
+  position: relative; flex: none; margin-left: auto; transition: background 0.2s var(--ease);
+}
+.conn-switch > i {
+  position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(60, 34, 20, 0.3); transition: transform 0.2s var(--ease);
+}
+.conn-switch.on { background: var(--success); }
+.conn-switch.on > i { transform: translateX(14px); } /* knob to the far right when linked */
+
+/* ---------- Collapsible sidebar (desktop) ---------- */
+.app { transition: grid-template-columns 0.24s var(--ease); }
+.collapse-btn { display: inline-flex; }
+@media (max-width: 900px) { .collapse-btn { display: none; } }
+@media (min-width: 901px) {
+  .app.collapsed { grid-template-columns: 0 1fr; }
+  .app.collapsed > .sidebar {
+    padding-left: 0; padding-right: 0; overflow: hidden; border-right: none;
+    opacity: 0; pointer-events: none; transition: opacity 0.15s var(--ease);
+  }
+}
