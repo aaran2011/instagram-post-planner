@@ -20,14 +20,7 @@ export const config = {
     // No Facebook Page is required with this flow. META_* names are accepted as
     // a fallback for older configs.
     //
-    // The Instagram app id is PUBLIC (it appears in the OAuth URL), so we pin it
-    // here to the app whose secret (INSTAGRAM_APP_SECRET) is configured in the
-    // host. This guards against a stale/edited INSTAGRAM_APP_ID in the host that
-    // no longer matches the stored secret — that mismatch is what surfaces as
-    // Instagram's "Insufficient developer role" at Connect time. To move to a
-    // different Instagram app, change this id AND the INSTAGRAM_APP_SECRET env
-    // var together so the pair always matches.
-    appId: "2157784201447457",
+    appId: process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID || "",
     appSecret: process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET || "",
     redirectUri:
       process.env.INSTAGRAM_REDIRECT_URI ||

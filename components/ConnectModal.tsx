@@ -46,13 +46,15 @@ export default function ConnectModal({ onClose }: { onClose: () => void }) {
           </div>
           {state.instagram.connected ? (
             <div className="tiny muted">@{state.instagram.username}</div>
+          ) : cfg.instagramManualToken ? (
+            // A long-lived token (IG_ACCESS_TOKEN) is the most reliable path — no
+            // app secret, no OAuth redirect, no "developer role" check.
+            <button className="btn primary block" onClick={() => connect("manual")} disabled={busy === "manual"}>
+              {busy === "manual" ? <Spinner /> : <IconInstagram size={16} />} Connect Instagram
+            </button>
           ) : cfg.instagramOAuth ? (
             <button className="btn primary block" onClick={() => connect("oauth")} disabled={busy === "oauth"}>
               {busy === "oauth" ? <Spinner /> : <IconInstagram size={16} />} Connect Instagram
-            </button>
-          ) : cfg.instagramManualToken ? (
-            <button className="btn subtle block" onClick={() => connect("manual")} disabled={busy === "manual"}>
-              {busy === "manual" ? <Spinner dark /> : <IconCheck size={16} />} Connect with IG_ACCESS_TOKEN
             </button>
           ) : (
             <div className="banner tiny" style={{ background: "var(--surface-2)" }}>
